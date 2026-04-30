@@ -53,7 +53,8 @@ export default function Home() {
       return;
     }
 
-    const wsUrl = `ws://localhost:8000/ws/${channel}?secret_key=${encodeURIComponent(secretKey)}`;
+    const baseUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+    const wsUrl = `${baseUrl}/ws/${channel}?secret_key=${encodeURIComponent(secretKey)}`;
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
