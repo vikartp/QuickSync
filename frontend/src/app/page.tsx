@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, MonitorUp, MonitorOff, Send, PhoneOff, User, KeyRound, Hash, MessageSquare, Maximize, Minimize, MessageSquareOff } from 'lucide-react';
+import { Mic, MicOff, MonitorUp, MonitorOff, Send, PhoneOff, User, KeyRound, Hash, MessageSquare, Maximize, Minimize, MessageSquareOff, Camera, CameraOff, CircleDot, Square } from 'lucide-react';
 
 export default function Home() {
   const [isJoined, setIsJoined] = useState(false);
@@ -10,18 +10,33 @@ export default function Home() {
   const [secretKey, setSecretKey] = useState('');
   const [messages, setMessages] = useState<{sender: string, text: string}[]>([]);
   const [chatInput, setChatInput] = useState('');
+  
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isRemoteScreenSharing, setIsRemoteScreenSharing] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isRemoteCameraOn, setIsRemoteCameraOn] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const [error, setError] = useState('');
   const [isChatVisible, setIsChatVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [error, setError] = useState('');
 
   const ws = useRef<WebSocket | null>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
-  const localStream = useRef<MediaStream | null>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  
+  const localScreenStream = useRef<MediaStream | null>(null);
+  const localCameraStream = useRef<MediaStream | null>(null);
+  const localAudioStream = useRef<MediaStream | null>(null);
+  
+  const remoteVideoRef = useRef<HTMLVideoElement>(null); 
+  const remoteCameraRef = useRef<HTMLVideoElement>(null); 
+  const localCameraRef = useRef<HTMLVideoElement>(null); 
+  
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<BlobPart[]>([]);
+
+  const remoteStreamIds = useRef<{ camera?: string, screen?: string }>({});
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -39,7 +54,7 @@ export default function Home() {
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      remoteVideoRef.current?.parentElement?.requestFullscreen().catch(err => {
+      document.documentElement.requestFullscreen().catch(err => {
         console.error(`Error attempting to enable full-screen mode: ${err.message}`);
       });
     } else {
@@ -72,8 +87,9 @@ export default function Home() {
         socket.close();
       } else if (data.type === 'chat') {
         setMessages(prev => [...prev, { sender: data.sender, text: data.text }]);
+      } else if (data.type === 'stream_info') {
+        remoteStreamIds.current = { camera: data.camera, screen: data.screen };
       } else if (data.type === 'user_joined') {
-        // We are the initiator
         createOffer();
       } else if (data.type === 'offer') {
         await handleOffer(data.offer);
@@ -84,14 +100,19 @@ export default function Home() {
       } else if (data.type === 'user_left') {
         setMessages(prev => [...prev, { sender: 'System', text: 'Peer left the channel.' }]);
         setIsRemoteScreenSharing(false);
+        setIsRemoteCameraOn(false);
         if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+        if (remoteCameraRef.current) remoteCameraRef.current.srcObject = null;
         if (peerConnection.current) {
             peerConnection.current.close();
-            setupWebRTC(); // Re-initialize for next user
+            setupWebRTC();
         }
       } else if (data.type === 'stop_screen_share') {
         setIsRemoteScreenSharing(false);
         if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+      } else if (data.type === 'stop_camera') {
+        setIsRemoteCameraOn(false);
+        if (remoteCameraRef.current) remoteCameraRef.current.srcObject = null;
       }
     };
 
@@ -117,23 +138,38 @@ export default function Home() {
     };
 
     pc.ontrack = (event) => {
-      if (remoteVideoRef.current && event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-      }
+      const stream = event.streams[0];
+      const isCamera = stream.id === remoteStreamIds.current.camera;
+      
       if (event.track.kind === 'video') {
-        setIsRemoteScreenSharing(true);
-        event.track.onmute = () => {
-          setIsRemoteScreenSharing(false);
-          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-        };
-        event.track.onended = () => {
-          setIsRemoteScreenSharing(false);
-          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-        };
+         if (isCamera) {
+            if (remoteCameraRef.current) remoteCameraRef.current.srcObject = stream;
+            setIsRemoteCameraOn(true);
+         } else {
+            if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+            setIsRemoteScreenSharing(true);
+         }
+      } else if (event.track.kind === 'audio') {
+         if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
+             remoteVideoRef.current.srcObject = stream;
+         } else if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+             const existingStream = remoteVideoRef.current.srcObject as MediaStream;
+             if (!existingStream.getAudioTracks().length) {
+                 existingStream.addTrack(event.track);
+             }
+         }
       }
     };
 
     peerConnection.current = pc;
+  };
+
+  const broadcastStreamInfo = () => {
+      ws.current?.send(JSON.stringify({ 
+          type: 'stream_info', 
+          camera: localCameraStream.current?.id, 
+          screen: localScreenStream.current?.id 
+      }));
   };
 
   const createOffer = async () => {
@@ -177,25 +213,64 @@ export default function Home() {
     }
   };
 
+  const toggleCamera = async () => {
+      if (!peerConnection.current) return;
+
+      if (isCameraOn) {
+          const senders = peerConnection.current.getSenders();
+          if (localCameraStream.current) {
+              localCameraStream.current.getTracks().forEach(track => {
+                  const sender = senders.find(s => s.track === track);
+                  if (sender) peerConnection.current?.removeTrack(sender);
+                  track.stop();
+              });
+              localCameraStream.current = null;
+          }
+          if (localCameraRef.current) localCameraRef.current.srcObject = null;
+          setIsCameraOn(false);
+          
+          broadcastStreamInfo();
+          createOffer();
+          ws.current?.send(JSON.stringify({ type: 'stop_camera' }));
+      } else {
+          try {
+              const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+              localCameraStream.current = stream;
+              if (localCameraRef.current) localCameraRef.current.srcObject = stream;
+              
+              stream.getTracks().forEach(track => {
+                  peerConnection.current?.addTrack(track, stream);
+              });
+              
+              setIsCameraOn(true);
+              broadcastStreamInfo();
+              createOffer();
+          } catch (err) {
+              console.error("Error accessing camera", err);
+          }
+      }
+  };
+
   const toggleScreenShare = async () => {
     if (!peerConnection.current) return;
 
     if (isScreenSharing) {
       const senders = peerConnection.current.getSenders();
-      const screenSender = senders.find(s => s.track?.kind === 'video');
-      if (screenSender) {
-        peerConnection.current.removeTrack(screenSender);
-      }
-      if (localStream.current) {
-        localStream.current.getVideoTracks().forEach(t => t.stop());
+      if (localScreenStream.current) {
+          localScreenStream.current.getTracks().forEach(track => {
+              const sender = senders.find(s => s.track === track);
+              if (sender) peerConnection.current?.removeTrack(sender);
+              track.stop();
+          });
+          localScreenStream.current = null;
       }
       setIsScreenSharing(false);
       setIsRemoteScreenSharing(false);
-      if (remoteVideoRef.current?.srcObject === localStream.current) {
+      if (remoteVideoRef.current?.srcObject === localScreenStream.current) {
         remoteVideoRef.current.srcObject = null;
       }
       
-      // Need to renegotiate
+      broadcastStreamInfo();
       createOffer();
       ws.current?.send(JSON.stringify({ type: 'stop_screen_share' }));
     } else {
@@ -203,28 +278,22 @@ export default function Home() {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         
         stream.getVideoTracks()[0].onended = () => {
-            if (isScreenSharing) toggleScreenShare(); // Stop sharing when user stops it via browser UI
+            if (isScreenSharing) toggleScreenShare(); 
         };
 
-        if (!localStream.current) {
-          localStream.current = stream;
-        } else {
-          stream.getTracks().forEach(t => localStream.current?.addTrack(t));
-        }
+        localScreenStream.current = stream;
 
-        const audioTrack = stream.getAudioTracks()[0];
-        const videoTrack = stream.getVideoTracks()[0];
-        
-        if (videoTrack) peerConnection.current.addTrack(videoTrack, localStream.current);
-        if (audioTrack && !isMuted) peerConnection.current.addTrack(audioTrack, localStream.current);
+        stream.getTracks().forEach(track => {
+            peerConnection.current?.addTrack(track, stream);
+        });
 
         setIsScreenSharing(true);
         setIsRemoteScreenSharing(true);
         if (remoteVideoRef.current) {
-           remoteVideoRef.current.srcObject = localStream.current;
+           remoteVideoRef.current.srcObject = stream;
         }
         
-        // Renegotiate
+        broadcastStreamInfo();
         createOffer();
       } catch (err) {
         console.error('Error sharing screen:', err);
@@ -238,36 +307,73 @@ export default function Home() {
       if (isMuted) {
           try {
               const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-              const audioTrack = stream.getAudioTracks()[0];
+              localAudioStream.current = stream;
               
-              if (localStream.current) {
-                  localStream.current.addTrack(audioTrack);
-              } else {
-                  localStream.current = stream;
-              }
+              stream.getTracks().forEach(track => {
+                  peerConnection.current?.addTrack(track, stream);
+              });
               
-              peerConnection.current.addTrack(audioTrack, localStream.current);
               setIsMuted(false);
               createOffer();
           } catch(err) {
               console.error("Error accessing mic:", err);
           }
       } else {
-          if (localStream.current) {
-              const audioTracks = localStream.current.getAudioTracks();
-              audioTracks.forEach(track => {
+          if (localAudioStream.current) {
+              const senders = peerConnection.current.getSenders();
+              localAudioStream.current.getTracks().forEach(track => {
+                  const sender = senders.find(s => s.track === track);
+                  if (sender) peerConnection.current?.removeTrack(sender);
                   track.stop();
-                  if (peerConnection.current) {
-                      const senders = peerConnection.current.getSenders();
-                      const sender = senders.find(s => s.track === track);
-                      if (sender) peerConnection.current.removeTrack(sender);
-                  }
               });
+              localAudioStream.current = null;
           }
           setIsMuted(true);
           createOffer();
       }
-  }
+  };
+
+  const toggleRecording = async () => {
+      if (isRecording) {
+          mediaRecorderRef.current?.stop();
+          setIsRecording(false);
+      } else {
+          try {
+              // Ask user to capture the current tab/screen to record the whole session (videos + chat)
+              // @ts-ignore
+              const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, preferCurrentTab: true });
+              recordedChunksRef.current = [];
+              const recorder = new MediaRecorder(stream);
+              
+              recorder.ondataavailable = (e) => {
+                  if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+              };
+              
+              recorder.onstop = () => {
+                  const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `quicksync-recording-${new Date().getTime()}.webm`;
+                  a.click();
+                  stream.getTracks().forEach(t => t.stop());
+              };
+              
+              stream.getVideoTracks()[0].onended = () => {
+                  if (mediaRecorderRef.current?.state !== 'inactive') {
+                      mediaRecorderRef.current?.stop();
+                      setIsRecording(false);
+                  }
+              };
+              
+              recorder.start();
+              mediaRecorderRef.current = recorder;
+              setIsRecording(true);
+          } catch (err) {
+              console.error("Recording failed", err);
+          }
+      }
+  };
 
   const sendChatMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,13 +403,27 @@ export default function Home() {
       peerConnection.current.close();
       peerConnection.current = null;
     }
-    if (localStream.current) {
-      localStream.current.getTracks().forEach(t => t.stop());
-      localStream.current = null;
+    if (localScreenStream.current) {
+      localScreenStream.current.getTracks().forEach(t => t.stop());
+      localScreenStream.current = null;
+    }
+    if (localCameraStream.current) {
+      localCameraStream.current.getTracks().forEach(t => t.stop());
+      localCameraStream.current = null;
+    }
+    if (localAudioStream.current) {
+      localAudioStream.current.getTracks().forEach(t => t.stop());
+      localAudioStream.current = null;
+    }
+    if (mediaRecorderRef.current?.state !== 'inactive') {
+        mediaRecorderRef.current?.stop();
     }
     setIsScreenSharing(false);
     setIsRemoteScreenSharing(false);
-    setIsMuted(true); // default to muted
+    setIsCameraOn(false);
+    setIsRemoteCameraOn(false);
+    setIsRecording(false);
+    setIsMuted(true); 
   };
 
   if (!isJoined) {
@@ -410,17 +530,52 @@ export default function Home() {
         {/* Screen Share Area */}
         <div className="flex-1 p-4 flex flex-col relative">
           <div className="flex-1 bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden relative flex items-center justify-center shadow-2xl">
+            
+            {/* Main Screen Share Video */}
             <video 
               ref={remoteVideoRef} 
               autoPlay 
               playsInline 
               className="w-full h-full object-contain bg-black"
+              style={{ display: (isRemoteScreenSharing || isScreenSharing) ? 'block' : 'none' }}
             />
-            {(!isRemoteScreenSharing) && (
+            
+            {/* Remote Camera */}
+            <video 
+              ref={remoteCameraRef} 
+              autoPlay 
+              playsInline 
+              className={ (isRemoteScreenSharing || isScreenSharing) ? 
+                "absolute top-4 left-4 w-48 h-32 rounded-xl object-cover border-2 border-zinc-700 shadow-xl z-20 bg-zinc-800" 
+                : "w-full h-full object-contain bg-black" 
+              }
+              style={{ display: isRemoteCameraOn ? 'block' : 'none' }}
+            />
+            
+            {/* Local Camera PiP */}
+            <video 
+              ref={localCameraRef} 
+              autoPlay 
+              playsInline 
+              muted
+              className="absolute bottom-4 right-4 w-48 h-32 rounded-xl object-cover border-2 border-indigo-500 shadow-xl z-20 bg-zinc-800 transform scale-x-[-1]"
+              style={{ display: isCameraOn ? 'block' : 'none' }}
+            />
+
+            {/* Placeholder if nothing */}
+            {(!isRemoteScreenSharing && !isScreenSharing && !isRemoteCameraOn && !isCameraOn) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/80 backdrop-blur-sm z-10 pointer-events-none">
                 <MonitorOff size={48} className="text-zinc-700 mb-4" />
-                <p className="text-zinc-400 font-medium">Waiting for screen share...</p>
+                <p className="text-zinc-400 font-medium">Waiting for video or screen share...</p>
               </div>
+            )}
+
+            {/* Recording Indicator Overlay */}
+            {isRecording && (
+                <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-500/20 border border-red-500/50 text-red-500 px-3 py-1.5 rounded-full z-30 shadow-lg animate-pulse">
+                    <CircleDot size={16} />
+                    <span className="text-xs font-semibold tracking-wider uppercase">Recording</span>
+                </div>
             )}
           </div>
 
@@ -441,11 +596,26 @@ export default function Home() {
               {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
             </button>
             <button 
+              onClick={toggleCamera}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isCameraOn ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700'}`}
+              title={isCameraOn ? "Stop Camera" : "Start Camera"}
+            >
+              {isCameraOn ? <Camera size={20} /> : <CameraOff size={20} />}
+            </button>
+            <button 
               onClick={toggleScreenShare}
               className={`px-6 h-12 rounded-full flex items-center gap-2 font-medium transition-all ${isScreenSharing ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700'}`}
             >
               <MonitorUp size={20} />
               {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+            </button>
+            <button 
+              onClick={toggleRecording}
+              className={`px-6 h-12 rounded-full flex items-center gap-2 font-medium transition-all ${isRecording ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30' : 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700'}`}
+              title={isRecording ? "Stop Recording" : "Record Session"}
+            >
+              {isRecording ? <Square size={16} fill="currentColor" /> : <CircleDot size={18} className="text-red-400" />}
+              {isRecording ? 'Stop Rec' : 'Record'}
             </button>
             <button 
               onClick={toggleFullscreen}
