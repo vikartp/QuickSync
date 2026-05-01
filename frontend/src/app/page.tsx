@@ -31,6 +31,8 @@ export default function Home() {
   const remoteVideoRef = useRef<HTMLVideoElement>(null); 
   const remoteCameraRef = useRef<HTMLVideoElement>(null); 
   const localCameraRef = useRef<HTMLVideoElement>(null); 
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const remoteAudioStream = useRef<MediaStream | null>(null); 
   
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -103,6 +105,10 @@ export default function Home() {
         setIsRemoteCameraOn(false);
         if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         if (remoteCameraRef.current) remoteCameraRef.current.srcObject = null;
+        if (remoteAudioStream.current) {
+            remoteAudioStream.current.getTracks().forEach(t => t.stop());
+            remoteAudioStream.current = null;
+        }
         if (peerConnection.current) {
             peerConnection.current.close();
             setupWebRTC();
@@ -150,13 +156,13 @@ export default function Home() {
             setIsRemoteScreenSharing(true);
          }
       } else if (event.track.kind === 'audio') {
-         if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
-             remoteVideoRef.current.srcObject = stream;
-         } else if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-             const existingStream = remoteVideoRef.current.srcObject as MediaStream;
-             if (!existingStream.getAudioTracks().length) {
-                 existingStream.addTrack(event.track);
-             }
+         if (!remoteAudioStream.current) {
+             remoteAudioStream.current = new MediaStream();
+             if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteAudioStream.current;
+         }
+         const existingTracks = remoteAudioStream.current.getAudioTracks();
+         if (!existingTracks.find(t => t.id === event.track.id)) {
+             remoteAudioStream.current.addTrack(event.track);
          }
       }
     };
@@ -415,6 +421,10 @@ export default function Home() {
       localAudioStream.current.getTracks().forEach(t => t.stop());
       localAudioStream.current = null;
     }
+    if (remoteAudioStream.current) {
+      remoteAudioStream.current.getTracks().forEach(t => t.stop());
+      remoteAudioStream.current = null;
+    }
     if (mediaRecorderRef.current?.state !== 'inactive') {
         mediaRecorderRef.current?.stop();
     }
@@ -569,6 +579,9 @@ export default function Home() {
                 <p className="text-zinc-400 font-medium">Waiting for video or screen share...</p>
               </div>
             )}
+
+            {/* Dedicated Remote Audio Player */}
+            <audio ref={remoteAudioRef} autoPlay playsInline />
 
             {/* Recording Indicator Overlay */}
             {isRecording && (
