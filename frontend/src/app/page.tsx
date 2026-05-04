@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, MonitorUp, MonitorOff, Send, PhoneOff, User, KeyRound, Hash, MessageSquare, Maximize, Minimize, MessageSquareOff, Camera, CameraOff, CircleDot, Square, Settings } from 'lucide-react';
+import { Mic, MicOff, MonitorUp, MonitorOff, Send, PhoneOff, User, KeyRound, Hash, MessageSquare, Maximize, Minimize, MessageSquareOff, Camera, CameraOff, CircleDot, Square, Settings, Trash2 } from 'lucide-react';
 
 export default function Home() {
   const [isJoined, setIsJoined] = useState(false);
@@ -24,6 +24,8 @@ export default function Home() {
   const [audioInputId, setAudioInputId] = useState<string>('');
   const [audioOutputId, setAudioOutputId] = useState<string>('');
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminSessions, setAdminSessions] = useState<Record<string, string[]>>({});
 
   const ws = useRef<WebSocket | null>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -103,6 +105,18 @@ export default function Home() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('quicksync_username');
+    const savedChannel = localStorage.getItem('quicksync_channel');
+    const savedSecretKey = localStorage.getItem('quicksync_secretKey');
+    const savedIsAdmin = localStorage.getItem('isAdmin');
+    
+    if (savedUsername) setUsername(savedUsername);
+    if (savedChannel) setChannel(savedChannel);
+    if (savedSecretKey) setSecretKey(savedSecretKey);
+    if (savedIsAdmin === 'true') setIsAdmin(true);
+  }, []);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(err => {
@@ -113,14 +127,39 @@ export default function Home() {
     }
   };
 
+  const fetchAdminSessions = async () => {
+      try {
+          const baseUrl = process.env.NEXT_PUBLIC_WS_URL?.replace('ws://', 'http://').replace('wss://', 'https://') || 'http://localhost:8000';
+          const res = await fetch(`${baseUrl}/admin/sessions?secret_key=${encodeURIComponent(secretKey)}`);
+          if (res.ok) {
+              const data = await res.json();
+              setAdminSessions(data.sessions);
+          }
+      } catch (err) {
+          console.error("Failed to fetch admin sessions", err);
+      }
+  };
+
+  useEffect(() => {
+      if (isAdmin && showSettings) {
+          fetchAdminSessions();
+          const int = setInterval(fetchAdminSessions, 5000);
+          return () => clearInterval(int);
+      }
+  }, [isAdmin, showSettings, secretKey]);
+
   const connectWebSocket = () => {
     if (!channel || !username || !secretKey) {
       setError('Please fill in all fields');
       return;
     }
 
+    localStorage.setItem('quicksync_username', username);
+    localStorage.setItem('quicksync_channel', channel);
+    localStorage.setItem('quicksync_secretKey', secretKey);
+
     const baseUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
-    const wsUrl = `${baseUrl}/ws/${channel}?secret_key=${encodeURIComponent(secretKey)}`;
+    const wsUrl = `${baseUrl}/ws/${channel}?secret_key=${encodeURIComponent(secretKey)}&username=${encodeURIComponent(username)}`;
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
@@ -787,6 +826,43 @@ export default function Home() {
                          ))}
                      </select>
                  </div>
+                 
+                 {isAdmin && (
+                     <div className="mt-4 pt-4 border-t border-zinc-800">
+                         <div className="p-3 bg-zinc-950 border border-zinc-800 rounded max-h-48 overflow-y-auto">
+                             <h3 className="text-xs font-semibold text-zinc-400 uppercase mb-2">Active Sessions (Admin)</h3>
+                             {Object.keys(adminSessions).length === 0 ? (
+                                 <p className="text-xs text-zinc-500">No active sessions</p>
+                             ) : (
+                                 Object.entries(adminSessions).map(([ch, users]) => (
+                                     <div key={ch} className="mb-2 last:mb-0 flex justify-between items-start">
+                                         <div>
+                                             <span className="text-indigo-400 text-sm font-medium">#{ch}</span>
+                                             <div className="flex gap-1 flex-wrap mt-1">
+                                                 {users.map((u, i) => <span key={i} className="text-xs bg-zinc-800 px-2 py-0.5 rounded">{u}</span>)}
+                                             </div>
+                                         </div>
+                                         <button 
+                                             onClick={async () => {
+                                                 try {
+                                                     const baseUrl = process.env.NEXT_PUBLIC_WS_URL?.replace('ws://', 'http://').replace('wss://', 'https://') || 'http://localhost:8000';
+                                                     await fetch(`${baseUrl}/admin/sessions/${ch}?secret_key=${encodeURIComponent(secretKey)}`, { method: 'DELETE' });
+                                                     fetchAdminSessions();
+                                                 } catch (err) {
+                                                     console.error(err);
+                                                 }
+                                             }}
+                                             className="p-1.5 text-zinc-500 hover:bg-red-500/20 hover:text-red-400 rounded-md transition-colors"
+                                             title="Delete Session"
+                                         >
+                                             <Trash2 size={14} />
+                                         </button>
+                                     </div>
+                                 ))
+                             )}
+                         </div>
+                     </div>
+                 )}
              </div>
              
              <button onClick={() => setShowSettings(false)} className="mt-6 w-full bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-medium transition-colors">
