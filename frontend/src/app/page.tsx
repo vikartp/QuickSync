@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, MonitorUp, MonitorOff, Send, PhoneOff, User, KeyRound, Hash, MessageSquare, Maximize, Minimize, MessageSquareOff, Camera, CameraOff, CircleDot, Square } from 'lucide-react';
+import { Mic, MicOff, MonitorUp, MonitorOff, Send, PhoneOff, User, KeyRound, Hash, MessageSquare, Maximize, Minimize, MessageSquareOff, Camera, CameraOff, CircleDot, Square, Settings } from 'lucide-react';
 
 export default function Home() {
   const [isJoined, setIsJoined] = useState(false);
@@ -20,6 +20,10 @@ export default function Home() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [audioInputId, setAudioInputId] = useState<string>('');
+  const [audioOutputId, setAudioOutputId] = useState<string>('');
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
 
   const ws = useRef<WebSocket | null>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -45,6 +49,51 @@ export default function Home() {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    const getDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        setAudioDevices(devices);
+      } catch (err) {
+        console.error("Error fetching devices", err);
+      }
+    };
+    
+    getDevices();
+    navigator.mediaDevices.addEventListener('devicechange', getDevices);
+    return () => navigator.mediaDevices.removeEventListener('devicechange', getDevices);
+  }, []);
+
+  useEffect(() => {
+    const updateOutput = async (element: HTMLMediaElement | null) => {
+        if (element && audioOutputId) {
+            // @ts-ignore
+            if (typeof element.setSinkId === 'function') {
+                // @ts-ignore
+                await element.setSinkId(audioOutputId).catch(console.error);
+            }
+        }
+    };
+    updateOutput(remoteAudioRef.current);
+    updateOutput(remoteVideoRef.current);
+  }, [audioOutputId, isJoined]);
+
+  useEffect(() => {
+      if (!isMuted && localAudioStream.current && peerConnection.current) {
+          navigator.mediaDevices.getUserMedia({ 
+              audio: audioInputId ? { deviceId: { exact: audioInputId } } : true 
+          }).then(newStream => {
+              const newTrack = newStream.getAudioTracks()[0];
+              const senders = peerConnection.current?.getSenders() || [];
+              const sender = senders.find(s => s.track?.kind === 'audio');
+              if (sender) sender.replaceTrack(newTrack);
+              
+              localAudioStream.current?.getTracks().forEach(t => t.stop());
+              localAudioStream.current = newStream;
+          }).catch(console.error);
+      }
+  }, [audioInputId]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -312,7 +361,12 @@ export default function Home() {
 
       if (isMuted) {
           try {
-              const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              const stream = await navigator.mediaDevices.getUserMedia({ 
+                  audio: audioInputId ? { deviceId: { exact: audioInputId } } : true 
+              });
+              
+              const devices = await navigator.mediaDevices.enumerateDevices();
+              setAudioDevices(devices);
               localAudioStream.current = stream;
               
               stream.getTracks().forEach(track => {
@@ -631,6 +685,20 @@ export default function Home() {
               {isRecording ? 'Stop Rec' : 'Record'}
             </button>
             <button 
+              onClick={() => {
+                  setShowSettings(true);
+                  if (audioDevices.some(d => !d.label)) {
+                      navigator.mediaDevices.getUserMedia({ audio: true })
+                        .then(s => { s.getTracks().forEach(t => t.stop()); navigator.mediaDevices.enumerateDevices().then(setAudioDevices); })
+                        .catch(console.error);
+                  }
+              }}
+              className="w-12 h-12 rounded-full flex items-center justify-center transition-all bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700"
+              title="Settings"
+            >
+              <Settings size={20} />
+            </button>
+            <button 
               onClick={toggleFullscreen}
               className="w-12 h-12 rounded-full flex items-center justify-center transition-all bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700"
               title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
@@ -686,6 +754,47 @@ export default function Home() {
           </div>
         )}
       </div>
+      {showSettings && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-96 shadow-2xl">
+             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><Settings size={20}/> Settings</h2>
+             
+             <div className="space-y-4">
+                 <div>
+                     <label className="block text-sm text-zinc-400 mb-1">Microphone</label>
+                     <select 
+                        value={audioInputId}
+                        onChange={e => setAudioInputId(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+                     >
+                         <option value="">Default Microphone</option>
+                         {audioDevices.filter(d => d.kind === 'audioinput').map(d => (
+                             <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone (${d.deviceId.substring(0,5)})`}</option>
+                         ))}
+                     </select>
+                 </div>
+                 
+                 <div>
+                     <label className="block text-sm text-zinc-400 mb-1">Speaker (Output)</label>
+                     <select 
+                        value={audioOutputId}
+                        onChange={e => setAudioOutputId(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+                     >
+                         <option value="">Default Speaker</option>
+                         {audioDevices.filter(d => d.kind === 'audiooutput').map(d => (
+                             <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker (${d.deviceId.substring(0,5)})`}</option>
+                         ))}
+                     </select>
+                 </div>
+             </div>
+             
+             <button onClick={() => setShowSettings(false)} className="mt-6 w-full bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-medium transition-colors">
+                Done
+             </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
