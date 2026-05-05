@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, MonitorUp, MonitorOff, Send, PhoneOff, User, KeyRound, Hash, MessageSquare, Maximize, Minimize, MessageSquareOff, Camera, CameraOff, CircleDot, Square, Settings, Trash2 } from 'lucide-react';
+import { Mic, MicOff, MonitorUp, MonitorOff, Send, PhoneOff, User, KeyRound, Hash, MessageSquare, Maximize, Minimize, MessageSquareOff, Camera, CameraOff, CircleDot, Square, Settings, Trash2, X } from 'lucide-react';
 
 export default function Home() {
   const [isJoined, setIsJoined] = useState(false);
@@ -609,6 +609,7 @@ export default function Home() {
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans overflow-hidden">
       {/* Header */}
+      {!isFullscreen && (
       <header className="h-16 border-b border-zinc-800 bg-zinc-900/50 backdrop-blur flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
@@ -627,19 +628,33 @@ export default function Home() {
           Leave
         </button>
       </header>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Screen Share Area */}
-        <div className="flex-1 p-4 flex flex-col relative">
-          <div className="flex-1 bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden relative flex items-center justify-center shadow-2xl">
+        <div className={isFullscreen ? 'fixed inset-0 z-[9999] bg-black flex flex-col' : 'flex-1 flex flex-col relative transition-all duration-300 p-4'}>
+          <div className={`flex-1 bg-zinc-900 overflow-hidden relative flex items-center justify-center shadow-2xl transition-all duration-300 ${isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border border-zinc-800'}`}>
+            
+            {/* Top Close Button (Fullscreen only) */}
+            {isFullscreen && (
+              <div className="absolute top-0 left-0 right-0 h-32 flex items-start justify-center pt-6 opacity-0 hover:opacity-100 transition-opacity duration-300 z-50 bg-gradient-to-b from-black/80 to-transparent">
+                <button 
+                  onClick={toggleFullscreen}
+                  className="bg-red-500/80 hover:bg-red-500 p-3 rounded-full text-white backdrop-blur shadow-2xl transition-all transform hover:scale-110"
+                  title="Exit Fullscreen"
+                >
+                  <X size={28} />
+                </button>
+              </div>
+            )}
             
             {/* Main Screen Share Video */}
             <video 
               ref={remoteVideoRef} 
               autoPlay 
               playsInline 
-              className="w-full h-full object-contain bg-black"
+              className={`w-full h-full bg-black ${isFullscreen ? 'object-cover' : 'object-contain'}`}
               style={{ display: (isRemoteScreenSharing || isScreenSharing) ? 'block' : 'none' }}
             />
             
@@ -650,7 +665,7 @@ export default function Home() {
               playsInline 
               className={ (isRemoteScreenSharing || isScreenSharing) ? 
                 "absolute top-4 left-4 w-48 h-32 rounded-xl object-cover border-2 border-zinc-700 shadow-xl z-20 bg-zinc-800" 
-                : "w-full h-full object-contain bg-black" 
+                : `w-full h-full bg-black ${isFullscreen ? 'object-cover' : 'object-contain'}` 
               }
               style={{ display: isRemoteCameraOn ? 'block' : 'none' }}
             />
@@ -686,7 +701,7 @@ export default function Home() {
           </div>
 
           {/* Controls */}
-          <div className="mt-4 h-16 bg-zinc-900 rounded-2xl border border-zinc-800 flex items-center justify-center gap-4 px-6 shrink-0 shadow-lg">
+          <div className={`h-16 flex items-center justify-center gap-4 px-6 shrink-0 shadow-lg transition-all duration-300 ${isFullscreen ? 'absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/80 backdrop-blur-md rounded-full border border-zinc-700/50 z-50 opacity-0 hover:opacity-100' : 'mt-4 bg-zinc-900 rounded-2xl border border-zinc-800'}`}>
              <button 
               onClick={() => setIsChatVisible(!isChatVisible)}
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${!isChatVisible ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700'}`}
@@ -748,7 +763,7 @@ export default function Home() {
         </div>
 
         {/* Chat Sidebar */}
-        {isChatVisible && (
+        {isChatVisible && !isFullscreen && (
           <div className="w-80 border-l border-zinc-800 bg-zinc-900/30 flex flex-col shrink-0 transition-all">
             <div className="h-14 border-b border-zinc-800 flex items-center px-4 gap-2">
               <MessageSquare size={16} className="text-zinc-400" />
