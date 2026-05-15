@@ -1,0 +1,13 @@
+{
+  "name": "quicksync-e2e",
+  "version": "1.0.0",
+  "description": "Playwright E2E tests for QuickSync",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "@types/node": "^20.0.0"
+  }
+}

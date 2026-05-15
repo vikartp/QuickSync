@@ -2,8 +2,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, MonitorUp, MonitorOff, Send, PhoneOff, User, KeyRound, Hash, MessageSquare, Maximize, Minimize, MessageSquareOff, Camera, CameraOff, CircleDot, Square, Settings, Trash2, X } from 'lucide-react';
+import { LandingPage } from '../components/LandingPage';
+import { ParticipantsModal } from '../components/ParticipantsModal';
+import { SettingsModal } from '../components/SettingsModal';
+import { ChatSidebar } from '../components/ChatSidebar';
 
 export default function Home() {
+  // ==========================================
+  // 1. APPLICATION STATE
+  // ==========================================
+  
+  // Connection & User State
   const [isJoined, setIsJoined] = useState(false);
   const [channel, setChannel] = useState('');
   const [username, setUsername] = useState('');
@@ -26,7 +35,14 @@ export default function Home() {
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminSessions, setAdminSessions] = useState<Record<string, string[]>>({});
+  const [activeUsers, setActiveUsers] = useState<string[]>([]);
+  const [showUsersModal, setShowUsersModal] = useState(false);
 
+  // ==========================================
+  // 2. WEBRTC & DOM REFERENCES
+  // ==========================================
+  
+  // Networking Refs
   const ws = useRef<WebSocket | null>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   
@@ -148,6 +164,14 @@ export default function Home() {
       }
   }, [isAdmin, showSettings, secretKey]);
 
+  // ==========================================
+  // 3. CORE NETWORKING (WEBSOCKET & SIGNALING)
+  // ==========================================
+  
+  /**
+   * Initializes the WebSocket connection and sets up signaling listeners.
+   * This is the gateway to entering a channel and discovering peers.
+   */
   const connectWebSocket = () => {
     if (!channel || !username || !secretKey) {
       setError('Please fill in all fields');
@@ -175,11 +199,14 @@ export default function Home() {
       if (data.type === 'error') {
         setError(data.message);
         socket.close();
+      } else if (data.type === 'users_list') {
+        setActiveUsers(data.users);
       } else if (data.type === 'chat') {
         setMessages(prev => [...prev, { sender: data.sender, text: data.text }]);
       } else if (data.type === 'stream_info') {
         remoteStreamIds.current = { camera: data.camera, screen: data.screen };
       } else if (data.type === 'user_joined') {
+        broadcastStreamInfo();
         createOffer();
       } else if (data.type === 'offer') {
         await handleOffer(data.offer);
@@ -207,6 +234,21 @@ export default function Home() {
       } else if (data.type === 'stop_camera') {
         setIsRemoteCameraOn(false);
         if (remoteCameraRef.current) remoteCameraRef.current.srcObject = null;
+      } else if (data.type === 'force_stop_screen_share') {
+        if (localScreenStream.current && peerConnection.current) {
+            const senders = peerConnection.current.getSenders();
+            localScreenStream.current.getTracks().forEach(track => {
+                const sender = senders.find(s => s.track === track);
+                if (sender) peerConnection.current?.removeTrack(sender);
+                track.stop();
+            });
+            const oldStream = localScreenStream.current;
+            localScreenStream.current = null;
+            setIsScreenSharing(false);
+            if (remoteVideoRef.current && remoteVideoRef.current.srcObject === oldStream) {
+                remoteVideoRef.current.srcObject = null;
+            }
+        }
       }
     };
 
@@ -220,6 +262,14 @@ export default function Home() {
     };
   };
 
+  // ==========================================
+  // 4. WEBRTC CONNECTION MANAGEMENT
+  // ==========================================
+  
+  /**
+   * Initializes the RTCPeerConnection, attaches active local streams if they exist
+   * (useful during reconnection drops), and sets up handlers for incoming media tracks.
+   */
   const setupWebRTC = () => {
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -246,14 +296,36 @@ export default function Home() {
       } else if (event.track.kind === 'audio') {
          if (!remoteAudioStream.current) {
              remoteAudioStream.current = new MediaStream();
-             if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteAudioStream.current;
          }
+         
+         // Clear previous tracks to avoid accumulating ended tracks
+         remoteAudioStream.current.getAudioTracks().forEach(t => {
+             if (t.id !== event.track.id) {
+                 remoteAudioStream.current?.removeTrack(t);
+             }
+         });
+         
          const existingTracks = remoteAudioStream.current.getAudioTracks();
          if (!existingTracks.find(t => t.id === event.track.id)) {
              remoteAudioStream.current.addTrack(event.track);
          }
+         
+         // Re-assign srcObject to force browser to play the new track
+         if (remoteAudioRef.current) {
+             remoteAudioRef.current.srcObject = remoteAudioStream.current;
+         }
       }
     };
+
+    if (localCameraStream.current) {
+        localCameraStream.current.getTracks().forEach(track => pc.addTrack(track, localCameraStream.current!));
+    }
+    if (localScreenStream.current) {
+        localScreenStream.current.getTracks().forEach(track => pc.addTrack(track, localScreenStream.current!));
+    }
+    if (localAudioStream.current) {
+        localAudioStream.current.getTracks().forEach(track => pc.addTrack(track, localAudioStream.current!));
+    }
 
     peerConnection.current = pc;
   };
@@ -307,6 +379,14 @@ export default function Home() {
     }
   };
 
+  // ==========================================
+  // 5. MEDIA CONTROLS (CAMERA, SCREEN, MIC)
+  // ==========================================
+  
+  /**
+   * Toggles the user's local camera. 
+   * Acquires the hardware stream, displays local preview, and injects it into the active WebRTC tunnel.
+   */
   const toggleCamera = async () => {
       if (!peerConnection.current) return;
 
@@ -370,6 +450,9 @@ export default function Home() {
     } else {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        
+        // Tell the other user to stop sharing their screen so ours can take over
+        ws.current?.send(JSON.stringify({ type: 'force_stop_screen_share' }));
         
         stream.getVideoTracks()[0].onended = () => {
             if (isScreenSharing) toggleScreenShare(); 
@@ -529,83 +612,23 @@ export default function Home() {
     setIsMuted(true); 
   };
 
+  // ==========================================
+  // 7. RENDER: LANDING PAGE
+  // ==========================================
   if (!isJoined) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-zinc-100 selection:bg-indigo-500/30 font-sans">
-        <div className="w-full max-w-md p-8 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold tracking-tight mb-2">QuickSync</h1>
-            <p className="text-zinc-400 text-sm">Join a channel to share your screen and chat instantly.</p>
-          </div>
-
-          <div className="space-y-4">
-            {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-            
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Username</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User size={16} className="text-zinc-500" />
-                </div>
-                <input 
-                  type="text" 
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-                  placeholder="Your Name"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Channel ID</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Hash size={16} className="text-zinc-500" />
-                </div>
-                <input 
-                  type="text" 
-                  value={channel}
-                  onChange={(e) => setChannel(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-                  placeholder="e.g. daily-standup"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Secret Key</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <KeyRound size={16} className="text-zinc-500" />
-                </div>
-                <input 
-                  type="password" 
-                  value={secretKey}
-                  onChange={(e) => setSecretKey(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-                  placeholder="Required for access"
-                />
-              </div>
-            </div>
-
-            <button 
-              onClick={connectWebSocket}
-              className="w-full mt-6 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg transition-all duration-200 shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_25px_rgba(79,70,229,0.5)] active:scale-[0.98]"
-            >
-              Join Channel
-            </button>
-          </div>
-        </div>
-      </div>
+      <LandingPage 
+        username={username} setUsername={setUsername}
+        channel={channel} setChannel={setChannel}
+        secretKey={secretKey} setSecretKey={setSecretKey}
+        error={error} connectWebSocket={connectWebSocket}
+      />
     );
   }
 
+  // ==========================================
+  // 8. RENDER: MAIN MEETING ROOM
+  // ==========================================
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans overflow-hidden">
       {/* Header */}
@@ -631,7 +654,7 @@ export default function Home() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Screen Share Area */}
         <div className={isFullscreen ? 'fixed inset-0 z-[9999] bg-black flex flex-col' : 'flex-1 flex flex-col relative transition-all duration-300 p-4'}>
           <div className={`flex-1 bg-zinc-900 overflow-hidden relative flex items-center justify-center shadow-2xl transition-all duration-300 ${isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border border-zinc-800'}`}>
@@ -703,12 +726,13 @@ export default function Home() {
           {/* Controls */}
           <div className={`h-16 flex items-center justify-center gap-4 px-6 shrink-0 shadow-lg transition-all duration-300 ${isFullscreen ? 'absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/80 backdrop-blur-md rounded-full border border-zinc-700/50 z-50 opacity-0 hover:opacity-100' : 'mt-4 bg-zinc-900 rounded-2xl border border-zinc-800'}`}>
              <button 
-              onClick={() => setIsChatVisible(!isChatVisible)}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${!isChatVisible ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700'}`}
-              title={isChatVisible ? "Hide Chat" : "Show Chat"}
+              onClick={() => setShowUsersModal(true)}
+              className="w-12 h-12 rounded-full flex items-center justify-center transition-all bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700"
+              title="Participants"
             >
-              {isChatVisible ? <MessageSquareOff size={20} /> : <MessageSquare size={20} />}
+              <User size={20} />
             </button>
+
              <button 
               onClick={toggleMute}
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' : 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700'}`}
@@ -761,131 +785,52 @@ export default function Home() {
             </button>
           </div>
         </div>
+        {/* Floating Chat Toggle */}
+        {!isChatVisible && !isFullscreen && (
+          <button 
+            onClick={() => setIsChatVisible(true)}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-40 bg-zinc-900 border-l border-y border-zinc-800 py-4 px-2 rounded-l-xl text-zinc-400 hover:text-indigo-400 hover:bg-zinc-800 transition-all shadow-2xl flex flex-col items-center gap-2"
+            title="Show Chat"
+          >
+            <MessageSquare size={18} />
+            <div className="[writing-mode:vertical-lr] text-[10px] font-bold uppercase tracking-widest">Chat</div>
+          </button>
+        )}
 
         {/* Chat Sidebar */}
-        {isChatVisible && !isFullscreen && (
-          <div className="w-80 border-l border-zinc-800 bg-zinc-900/30 flex flex-col shrink-0 transition-all">
-            <div className="h-14 border-b border-zinc-800 flex items-center px-4 gap-2">
-              <MessageSquare size={16} className="text-zinc-400" />
-              <h2 className="font-semibold text-sm">Live Chat</h2>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={chatContainerRef}>
-              {messages.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-center px-4">
-                   <p className="text-zinc-500 text-sm">No messages yet. Start the conversation!</p>
-                </div>
-              ) : (
-                messages.map((msg, i) => (
-                  <div key={i} className={`flex flex-col ${msg.sender === username ? 'items-end' : 'items-start'}`}>
-                    <span className="text-[10px] text-zinc-500 mb-1 px-1">{msg.sender}</span>
-                    <div className={`px-3 py-2 rounded-xl text-sm max-w-[90%] ${msg.sender === username ? 'bg-indigo-600 text-white rounded-tr-sm' : msg.sender === 'System' ? 'bg-zinc-800/50 text-zinc-400 border border-zinc-700/50 w-full text-center italic rounded-xl' : 'bg-zinc-800 text-zinc-200 rounded-tl-sm'}`}>
-                      {msg.text}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <form onSubmit={sendChatMessage} className="p-4 border-t border-zinc-800 bg-zinc-900/50">
-              <div className="relative">
-                <input 
-                  type="text" 
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Type a message..."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-full py-2.5 pl-4 pr-10 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
-                />
-                <button 
-                  type="submit"
-                  disabled={!chatInput.trim()}
-                  className="absolute right-1 top-1 bottom-1 w-8 flex items-center justify-center rounded-full bg-indigo-600 text-white disabled:opacity-50 disabled:bg-zinc-800 transition-colors"
-                >
-                  <Send size={14} className={chatInput.trim() ? "translate-x-[-1px] translate-y-[1px]" : ""} />
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+        <ChatSidebar 
+          isChatVisible={isChatVisible}
+          setIsChatVisible={setIsChatVisible}
+          isFullscreen={isFullscreen}
+          messages={messages}
+          username={username}
+          chatInput={chatInput}
+          setChatInput={setChatInput}
+          sendChatMessage={sendChatMessage}
+          chatContainerRef={chatContainerRef}
+        />
       </div>
-      {showSettings && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-96 shadow-2xl">
-             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><Settings size={20}/> Settings</h2>
-             
-             <div className="space-y-4">
-                 <div>
-                     <label className="block text-sm text-zinc-400 mb-1">Microphone</label>
-                     <select 
-                        value={audioInputId}
-                        onChange={e => setAudioInputId(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
-                     >
-                         <option value="">Default Microphone</option>
-                         {audioDevices.filter(d => d.kind === 'audioinput').map(d => (
-                             <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone (${d.deviceId.substring(0,5)})`}</option>
-                         ))}
-                     </select>
-                 </div>
-                 
-                 <div>
-                     <label className="block text-sm text-zinc-400 mb-1">Speaker (Output)</label>
-                     <select 
-                        value={audioOutputId}
-                        onChange={e => setAudioOutputId(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
-                     >
-                         <option value="">Default Speaker</option>
-                         {audioDevices.filter(d => d.kind === 'audiooutput').map(d => (
-                             <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker (${d.deviceId.substring(0,5)})`}</option>
-                         ))}
-                     </select>
-                 </div>
-                 
-                 {isAdmin && (
-                     <div className="mt-4 pt-4 border-t border-zinc-800">
-                         <div className="p-3 bg-zinc-950 border border-zinc-800 rounded max-h-48 overflow-y-auto">
-                             <h3 className="text-xs font-semibold text-zinc-400 uppercase mb-2">Active Sessions (Admin)</h3>
-                             {Object.keys(adminSessions).length === 0 ? (
-                                 <p className="text-xs text-zinc-500">No active sessions</p>
-                             ) : (
-                                 Object.entries(adminSessions).map(([ch, users]) => (
-                                     <div key={ch} className="mb-2 last:mb-0 flex justify-between items-start">
-                                         <div>
-                                             <span className="text-indigo-400 text-sm font-medium">#{ch}</span>
-                                             <div className="flex gap-1 flex-wrap mt-1">
-                                                 {users.map((u, i) => <span key={i} className="text-xs bg-zinc-800 px-2 py-0.5 rounded">{u}</span>)}
-                                             </div>
-                                         </div>
-                                         <button 
-                                             onClick={async () => {
-                                                 try {
-                                                     const baseUrl = process.env.NEXT_PUBLIC_WS_URL?.replace('ws://', 'http://').replace('wss://', 'https://') || 'http://localhost:8000';
-                                                     await fetch(`${baseUrl}/admin/sessions/${ch}?secret_key=${encodeURIComponent(secretKey)}`, { method: 'DELETE' });
-                                                     fetchAdminSessions();
-                                                 } catch (err) {
-                                                     console.error(err);
-                                                 }
-                                             }}
-                                             className="p-1.5 text-zinc-500 hover:bg-red-500/20 hover:text-red-400 rounded-md transition-colors"
-                                             title="Delete Session"
-                                         >
-                                             <Trash2 size={14} />
-                                         </button>
-                                     </div>
-                                 ))
-                             )}
-                         </div>
-                     </div>
-                 )}
-             </div>
-             
-             <button onClick={() => setShowSettings(false)} className="mt-6 w-full bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-medium transition-colors">
-                Done
-             </button>
-          </div>
-        </div>
-      )}
+      <SettingsModal 
+        showSettings={showSettings}
+        setShowSettings={setShowSettings}
+        audioInputId={audioInputId}
+        setAudioInputId={setAudioInputId}
+        audioOutputId={audioOutputId}
+        setAudioOutputId={setAudioOutputId}
+        audioDevices={audioDevices}
+        isAdmin={isAdmin}
+        adminSessions={adminSessions}
+        secretKey={secretKey}
+        fetchAdminSessions={fetchAdminSessions}
+      />
+
+      {/* Participants Modal */}
+      <ParticipantsModal 
+        showUsersModal={showUsersModal} 
+        setShowUsersModal={setShowUsersModal} 
+        activeUsers={activeUsers} 
+        username={username} 
+      />
     </div>
   );
 }

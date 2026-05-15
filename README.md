@@ -1,58 +1,60 @@
-# QuickSync
+# QuickSync 🚀
 
-QuickSync is a real-time, peer-to-peer screen sharing and chat application built with Next.js and FastAPI. It leverages WebRTC for seamless screen sharing and audio communication, and WebSockets for ephemeral live chat and signaling. 
+QuickSync is a highly scalable, zero-latency WebRTC-based application for Peer-to-Peer (P2P) screen sharing, real-time video calls, and instant messaging. It is built to be blisteringly fast, perfectly secure, and incredibly lightweight.
 
-## Features
+![QuickSync Demo](https://via.placeholder.com/1200x600.png?text=QuickSync+-+P2P+Collaboration)
 
-- **Peer-to-Peer Screen Sharing:** Share your screen directly with another user via WebRTC.
-- **Audio Communication:** Built-in microphone toggle to talk while sharing or viewing.
-- **Live Chat:** Real-time, ephemeral chat using WebSockets. No messages are stored in a database.
-- **Secure Channels:** Join specific channels with a predefined secret key.
-- **Modern Premium UI:** Built using Next.js 15, Tailwind CSS, and Lucide React icons.
+## 🌟 Features
 
-## Architecture
+*   **⚡ Zero-Latency P2P Video/Audio**: Directly connect browsers together using WebRTC. Media never touches a central server.
+*   **🖥️ High-Fidelity Screen Sharing**: Share your screen instantly. Supports "Kick-Out" logic to ensure only one screen is shared gracefully.
+*   **💬 Real-Time Chat**: Send messages instantly over the P2P data channel or WebSocket signaling layer.
+*   **🔒 Channel Security**: Rooms are protected by Secret Keys. Nobody can join without your permission.
+*   **👥 Smart Participant Tracking**: See exactly who is in your room with the sleek active users modal.
+*   **📹 Local Session Recording**: Record the entire meeting (video, screen, and audio) locally to your machine without any cloud storage limits.
+*   **📱 Immersive Fullscreen Mode**: A completely distraction-free, cinematic, edge-to-edge viewing mode with auto-hiding controls.
+*   **🛡️ Stealth Admin Panel**: A hidden dashboard for administrators to monitor active sessions and forcefully close channels.
 
-- **Frontend:** Next.js (App Router), React, Tailwind CSS. Handles WebRTC peer connections and media streams.
-- **Backend:** FastAPI, Python, Uvicorn. Acts as a WebSocket signaling server for WebRTC handshakes (Offer, Answer, ICE candidates) and relays live chat messages.
+## 🏗️ Architecture Overview
 
-## Quick Setup with Docker
+QuickSync is split into two specialized components:
 
-The easiest way to run QuickSync is using Docker Compose.
+1.  **Frontend (Next.js / React)**: The powerhouse of the application. It acts as both the beautiful UI and the WebRTC media engine. It dynamically manages hardware devices, renders media streams, and renegotiates connections on the fly.
+2.  **Backend (FastAPI / Python)**: A highly efficient, stateless Signaling Server. Its only job is to route WebSocket messages to help peers discover each other. It uses almost zero CPU and bandwidth.
 
-1. Ensure you have [Docker Desktop](https://www.docker.com/products/docker-desktop) installed.
-2. Open a terminal at the root of the project (`c:\Space\workspaces\QuickSync`).
-3. Run the following command:
-   ```bash
-   docker-compose up -d --build
-   ```
-4. Access the application:
-   - Frontend: [http://localhost:3000](http://localhost:3000)
-   - Backend WebSocket: `ws://localhost:8000`
+## 🚀 Getting Started
 
-## Manual Setup
+The easiest way to run QuickSync is using Docker.
 
-If you prefer to run the application locally without Docker, follow these steps:
+```bash
+# Clone the repository
+git clone https://github.com/vikartp/QuickSync.git
+cd QuickSync
 
-### Backend (FastAPI)
-1. Navigate to the backend directory: `cd backend`
-2. Create a virtual environment: `python -m venv venv`
-3. Activate the virtual environment:
-   - Windows: `.\venv\Scripts\activate`
-   - Linux/Mac: `source venv/bin/activate`
-4. Install dependencies: `pip install -r requirements.txt`
-5. Run the server: `uvicorn main:app --reload` (Runs on port 8000)
+# Start both frontend and backend using Docker Compose
+docker compose up --build
+```
 
-### Frontend (Next.js)
-1. Navigate to the frontend directory: `cd frontend`
-2. Install dependencies: `npm install`
-3. Run the development server: `npm run dev`
-4. Open [http://localhost:3000](http://localhost:3000)
+*   **Frontend**: http://localhost:3000
+*   **Backend API**: http://localhost:8000
 
-## Usage
+## 🧪 End-to-End Testing
 
-1. Open QuickSync in two different browser windows or on two different devices on the same network.
-2. Enter any username.
-3. Enter a Channel ID (e.g., `standup`).
-4. Enter the Secret Key. By default, the environment is configured to use `my_secure_secret_123`.
-5. Click **Join Channel**.
-6. Once both peers are joined, you can click **Share Screen** to broadcast your screen and **Unmute** to speak.
+QuickSync uses **Playwright** for robust End-to-End (E2E) testing. It fakes hardware media streams (camera/microphone) to test WebRTC P2P connections automatically.
+
+```bash
+cd e2e
+npm test
+# Or run with UI mode to watch the browsers interact:
+npm run test:ui
+```
+
+## 📚 Technical Documentation
+
+For deep dives into the specific codebases, refer to the individual documentation files:
+
+*   [Frontend Documentation](./frontend/README.md)
+*   [Backend Documentation](./backend/README.md)
+
+---
+*Built by Vikash Kumar with ❤️*
