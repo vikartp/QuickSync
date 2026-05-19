@@ -13,7 +13,10 @@ db = None
 async def connect_db():
     """Initialize the MongoDB connection. Called on app startup."""
     global client, db
-    client = AsyncIOMotorClient(settings.MONGO_URI)
+    client = AsyncIOMotorClient(
+        settings.MONGO_URI,
+        serverSelectionTimeoutMS=5000,
+    )
     db = client[settings.MONGO_DB_NAME]
 
     # Verify connection is working
