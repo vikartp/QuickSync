@@ -1,0 +1,76 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: quicksync.spec.ts >> QuickSync WebRTC P2P Tests >> Two users can join the same channel and connect
+- Location: tests\quicksync.spec.ts:4:7
+
+# Error details
+
+```
+Test timeout of 30000ms exceeded.
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - banner [ref=e13]:
+      - generic [ref=e14]:
+        - img [ref=e16]
+        - generic [ref=e19]:
+          - heading "QuickSync" [level=1] [ref=e20]
+          - paragraph [ref=e21]:
+            - text: Meeting f255defe
+            - generic [ref=e22]: (f255defe)
+      - generic [ref=e23]:
+        - button "Copy Meeting Link" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - text: Copy Meeting Link
+        - button "Leave" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+          - text: Leave
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - generic:
+            - img
+            - paragraph: Waiting for video or screen share...
+        - generic [ref=e36]:
+          - button "Participants" [ref=e37] [cursor=pointer]:
+            - img [ref=e38]
+          - button "Unmute" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+          - button "Start Camera" [ref=e48] [cursor=pointer]:
+            - img [ref=e49]
+          - button "Share Screen" [ref=e54] [cursor=pointer]:
+            - img [ref=e55]
+            - text: Share Screen
+          - button "Record" [ref=e58] [cursor=pointer]:
+            - img [ref=e59]
+            - text: Record
+          - button "Settings" [ref=e62] [cursor=pointer]:
+            - img [ref=e63]
+          - button "Fullscreen" [ref=e66] [cursor=pointer]:
+            - img [ref=e67]
+      - generic [ref=e72]:
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - img [ref=e75]
+            - heading "Live Chat" [level=2] [ref=e77]
+          - button [ref=e78] [cursor=pointer]:
+            - img [ref=e79]
+        - paragraph [ref=e84]: No messages yet. Start the conversation!
+        - generic [ref=e86]:
+          - textbox "Type a message..." [ref=e87]
+          - button [disabled] [ref=e88]:
+            - img [ref=e89]
+```

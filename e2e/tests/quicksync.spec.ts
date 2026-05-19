@@ -9,31 +9,36 @@ test.describe('QuickSync WebRTC P2P Tests', () => {
     const pageA = await userAContext.newPage();
     const pageB = await userBContext.newPage();
 
-    // 2. Both users navigate to the app
-    await pageA.goto('/');
-    await pageB.goto('/');
+    // 2. Alice creates a meeting from the auth page
+    await pageA.goto('/auth');
+    await pageA.fill('input[placeholder="Your display name"]', 'Alice');
+    await pageA.click('button:has-text("Start Meeting")');
 
-    // 3. Alice joins
-    await pageA.fill('input[placeholder="Enter your name"]', 'Alice');
-    await pageA.fill('input[placeholder="e.g. daily-standup"]', 'e2e-test-room');
-    await pageA.fill('input[placeholder="Required for access"]', 'my_secure_secret_123');
-    await pageA.click('button:has-text("Join Meeting")');
+    // 3. Wait for Alice to be redirected to the meeting room
+    await expect(pageA).toHaveURL(/\/meeting\/.+/, { timeout: 15000 });
+    const meetingUrl = pageA.url();
+    
+    // Alice will bypass the join prompt automatically because she just created it
+    await expect(pageA.locator('button[title="Participants"]')).toBeVisible({ timeout: 10000 });
 
-    // 4. Bob joins
+    // 4. Bob joins using Alice's meeting link (without the name query param)
+    const baseMeetingUrl = meetingUrl.split('?')[0];
+    await pageB.goto(baseMeetingUrl);
+
+    // Bob sees the join prompt, enters his name, and joins
     await pageB.fill('input[placeholder="Enter your name"]', 'Bob');
-    await pageB.fill('input[placeholder="e.g. daily-standup"]', 'e2e-test-room');
-    await pageB.fill('input[placeholder="Required for access"]', 'my_secure_secret_123');
     await pageB.click('button:has-text("Join Meeting")');
 
     // 5. Verify both are in the room
-    await expect(pageA.locator('text=Channel: #e2e-test-room')).toBeVisible({ timeout: 10000 });
-    await expect(pageB.locator('text=Channel: #e2e-test-room')).toBeVisible({ timeout: 10000 });
+    await expect(pageB.locator('button[title="Participants"]')).toBeVisible({ timeout: 10000 });
 
     // 6. Test WebSocket Signaling / Chat
+    await pageA.click('button[title="Show Chat"]');
     await pageA.fill('input[placeholder="Type a message..."]', 'Hello from Alice!');
-    await pageA.click('button[type="submit"]');
+    await pageA.click('button:has-text("Send")');
 
     // Bob should receive the chat instantly
+    await pageB.click('button[title="Show Chat"]');
     await expect(pageB.locator('text=Hello from Alice!')).toBeVisible();
 
     // 7. Test WebRTC Fake Media Tunneling
