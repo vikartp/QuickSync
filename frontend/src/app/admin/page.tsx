@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Shield, Key, Loader2, Video, Users, Trash2, Globe, Lock, Activity, Clock, MonitorUp, Heart, User, ArrowLeft, Home } from 'lucide-react';
+import { Shield, Key, Loader2, Video, Users, Trash2, Globe, Lock, Activity, Clock, MonitorUp, User, ArrowLeft, Home } from 'lucide-react';
+import { Footer } from '../../components/Footer';
 import { useTheme } from '../../components/ThemeProvider';
 import { Sun, Moon } from 'lucide-react';
 import { getApiUrl } from '../../lib/url';
@@ -317,16 +318,7 @@ export default function AdminDashboard() {
       </main>
 
       {/* Sticky Footer */}
-      <footer className="sticky bottom-0 z-50 backdrop-blur-xl theme-transition mt-auto" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)' }}>
-        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-          <p className="text-xs" style={{ color: 'var(--fg-faint)' }}>
-            &copy; {new Date().getFullYear()} QuickSync. Open source.
-          </p>
-          <p className="text-xs flex items-center gap-1.5" style={{ color: 'var(--fg-faint)' }}>
-            Built by Vikash Kumar with <Heart size={10} className="fill-red-500 text-red-500" /> in India
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
