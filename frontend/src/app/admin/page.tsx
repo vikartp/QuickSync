@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Key, Loader2, Video, Users, Trash2, Globe, Lock, Activity, Clock, MonitorUp, Heart, User, ArrowLeft, Home } from 'lucide-react';
 import { useTheme } from '../../components/ThemeProvider';
 import { Sun, Moon } from 'lucide-react';
+import { getApiUrl } from '../../lib/url';
 
 interface ActiveMeeting {
   meeting_id: string;
@@ -21,7 +22,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState('');
   const [sessions, setSessions] = useState<ActiveMeeting[]>([]);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const API_URL = getApiUrl();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Settings, Trash2 } from 'lucide-react';
+import { getApiUrl } from '../lib/url';
 
 interface SettingsModalProps {
   showSettings: boolean;
@@ -84,7 +85,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                      <button 
                                          onClick={async () => {
                                              try {
-                                                 const baseUrl = process.env.NEXT_PUBLIC_WS_URL?.replace('ws://', 'http://').replace('wss://', 'https://') || 'http://localhost:8000';
+                                                 const baseUrl = getApiUrl();
                                                  await fetch(`${baseUrl}/admin/sessions/${ch}?admin_key=${encodeURIComponent(secretKey)}`, { method: 'DELETE' });
                                                  fetchAdminSessions();
                                              } catch (err) {

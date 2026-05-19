@@ -7,11 +7,14 @@ import { ParticipantsModal } from '../../../components/ParticipantsModal';
 import { SettingsModal } from '../../../components/SettingsModal';
 import { ChatSidebar } from '../../../components/ChatSidebar';
 import { getMeeting } from '../../../lib/api';
+import { getWsUrl } from '../../../lib/url';
+import { useAuth } from '../../../components/AuthProvider';
 
 export default function MeetingRoom() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const meetingId = params.id as string;
   const nameFromQuery = searchParams.get('name') || '';
   // ==========================================
@@ -20,7 +23,7 @@ export default function MeetingRoom() {
 
   // Connection & User State
   const [isJoined, setIsJoined] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(!!nameFromQuery);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [username, setUsername] = useState(nameFromQuery);
   const [meetingTitle, setMeetingTitle] = useState('');
   const [meetingValid, setMeetingValid] = useState<boolean | null>(null);
@@ -68,6 +71,7 @@ export default function MeetingRoom() {
   const recordingAudioCtxRef = useRef<AudioContext | null>(null);
   const recordingDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const micSourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const remoteSourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
   const remoteStreamIds = useRef<{ camera?: string, screen?: string }>({});
 
@@ -149,23 +153,30 @@ export default function MeetingRoom() {
   }, []);
   const autoJoinAttempted = useRef(false);
 
-  // Validate meeting exists on mount
+  // Validate meeting exists on mount and auto-join for logged-in users or name-from-query
   useEffect(() => {
     if (!meetingId) return;
+    // Wait for auth to finish loading before deciding
+    if (authLoading) return;
+
     getMeeting(meetingId)
       .then((m) => {
         setMeetingValid(true);
         setMeetingTitle(m.title || `Meeting ${meetingId.slice(0, 8)}`);
-        // Auto-join if name was provided via query param
-        if (nameFromQuery && !autoJoinAttempted.current) {
+
+        if (autoJoinAttempted.current) return;
+
+        // Determine the name to auto-join with
+        const autoName = nameFromQuery || (user?.name ?? '');
+        if (autoName) {
           autoJoinAttempted.current = true;
-          setUsername(nameFromQuery);
-          // Auto-connect after validating meeting
-          connectWebSocket(nameFromQuery);
+          setUsername(autoName);
+          setIsConnecting(true);
+          connectWebSocket(autoName);
         }
       })
       .catch(() => setMeetingValid(false));
-  }, [meetingId]);
+  }, [meetingId, authLoading]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -196,7 +207,7 @@ export default function MeetingRoom() {
 
     setIsConnecting(true);
 
-    const baseUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+    const baseUrl = getWsUrl();
     const wsUrl = `${baseUrl}/ws/${meetingId}?username=${encodeURIComponent(finalName.trim())}`;
     const socket = new WebSocket(wsUrl);
     ws.current = socket;
@@ -331,6 +342,19 @@ export default function MeetingRoom() {
         // Re-assign srcObject to force browser to play the new track
         if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = remoteAudioStream.current;
+        }
+
+        // If recording is active, reconnect the updated remote audio to the recording graph
+        if (recordingAudioCtxRef.current && recordingDestRef.current) {
+          try {
+            if (remoteSourceNodeRef.current) {
+              remoteSourceNodeRef.current.disconnect();
+            }
+            remoteSourceNodeRef.current = recordingAudioCtxRef.current.createMediaStreamSource(remoteAudioStream.current);
+            remoteSourceNodeRef.current.connect(recordingDestRef.current);
+          } catch (e) {
+            console.error('Error connecting remote audio to recorder', e);
+          }
         }
       }
     };
@@ -556,14 +580,15 @@ export default function MeetingRoom() {
         recordingAudioCtxRef.current = audioCtx;
         recordingDestRef.current = dest;
 
-        // Mix display audio (remote participants, etc)
-        if (stream.getAudioTracks().length > 0) {
-          audioCtx.createMediaStreamSource(new MediaStream([stream.getAudioTracks()[0]])).connect(dest);
-        } else {
-          // Fallback: manually mix remote audio stream so we at least capture them!
-          if (remoteAudioStream.current && remoteAudioStream.current.getAudioTracks().length > 0) {
-            audioCtx.createMediaStreamSource(remoteAudioStream.current).connect(dest);
-          }
+        // Mix display audio if the browser provides it (tab audio capture)
+        const displayAudioTracks = stream.getAudioTracks();
+        if (displayAudioTracks.length > 0) {
+          audioCtx.createMediaStreamSource(new MediaStream([displayAudioTracks[0]])).connect(dest);
+        }
+
+        // Always mix remote audio from WebRTC peer (other participants)
+        if (remoteAudioStream.current && remoteAudioStream.current.getAudioTracks().length > 0) {
+          audioCtx.createMediaStreamSource(remoteAudioStream.current).connect(dest);
         }
 
         // Mix local mic if currently unmuted
@@ -687,9 +712,15 @@ export default function MeetingRoom() {
   // 7b. RENDER: JOIN PROMPT
   // ==========================================
   if (!isJoined) {
-    if (meetingValid === null || (nameFromQuery && !error && isConnecting)) {
+    // Show spinner while validating meeting, loading auth, or auto-connecting
+    if (meetingValid === null || authLoading || (isConnecting && !error)) {
       return (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}><Loader2 className="w-8 h-8 text-indigo-400 animate-spin" /></div>
+        <div className="min-h-screen flex flex-col items-center justify-center gap-3" style={{ background: 'var(--bg)' }}>
+          <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+            {authLoading ? 'Checking your account...' : isConnecting ? 'Joining meeting...' : 'Validating meeting...'}
+          </p>
+        </div>
       );
     }
     return (

@@ -3,7 +3,9 @@
  * Provides typed fetch wrappers for all REST endpoints.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiUrl } from './url';
+
+const API_BASE = getApiUrl();
 
 /** Generic fetch wrapper that auto-injects JWT if available. */
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
