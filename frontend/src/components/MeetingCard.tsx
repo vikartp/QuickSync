@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Meeting } from '../lib/api';
-import { Video, Users, Clock, ExternalLink, Trash2 } from 'lucide-react';
+import { Video, Users, Clock, ExternalLink, Trash2, Timer } from 'lucide-react';
 
 interface MeetingCardProps {
   meeting: Meeting;
@@ -13,7 +13,7 @@ interface MeetingCardProps {
 
 export const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onJoin, onEnd, onDelete }) => {
   const isActive = meeting.status === 'active';
-  const createdAt = new Date(meeting.created_at).toLocaleDateString('en-US', {
+  const createdAt = new Date(meeting.created_at).toLocaleString(undefined, {
     month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 
@@ -48,6 +48,9 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onJoin, onEnd
       <div className="flex items-center gap-4 text-xs mb-4" style={{ color: 'var(--fg-faint)' }}>
         <span className="flex items-center gap-1"><Users size={12} />{meeting.participants_limit} max</span>
         <span className="flex items-center gap-1"><Clock size={12} />{createdAt}</span>
+        {!isActive && meeting.duration_minutes != null && (
+          <span className="flex items-center gap-1"><Timer size={12} />{meeting.duration_minutes < 60 ? `${meeting.duration_minutes} min` : `${Math.floor(meeting.duration_minutes / 60)}h ${meeting.duration_minutes % 60}m`}</span>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

@@ -71,16 +71,20 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ### Auth
 *   `POST /api/auth/google` — Exchange a Google `id_token` for a QuickSync JWT.
 *   `GET /api/auth/me` — Get the currently authenticated user's profile.
+*   `GET /api/auth/search?q=...` — Search users by name/email (authenticated).
 
 ### Meetings
 *   `POST /api/meetings/create` — Create a new meeting (works for logged-in users and guests).
-*   `GET /api/meetings/my` — Get all meetings created by the authenticated user.
+*   `GET /api/meetings/my` — Get all meetings created by the authenticated user (includes duration for ended ones).
+*   `POST /api/meetings/channels` — Create a recurring meeting channel.
+*   `GET /api/meetings/channels` — List user's recurring channels.
+*   `DELETE /api/meetings/channels/{channel_id}` — Delete a recurring channel (creator only).
 *   `GET /api/meetings/{meeting_id}` — Get meeting details by ID.
-*   `POST /api/meetings/{meeting_id}/end` — End a meeting.
-*   `DELETE /api/meetings/{meeting_id}` — Delete a meeting permanently.
+*   `PATCH /api/meetings/{meeting_id}/end` — End a meeting (creator only).
+*   `DELETE /api/meetings/{meeting_id}` — Delete a meeting permanently (creator only).
 
 ### WebSockets
-*   `WS /ws/{meeting_id}` — Connect to a meeting room. Requires `username` query parameter. Meeting must exist and be active.
+*   `WS /ws/{meeting_id}?username=...` — Connect to a meeting room. Meeting must exist and be active.
 
 ### Admin
 *   `GET /admin/sessions?admin_key=...` — Returns active meetings with live participant data.

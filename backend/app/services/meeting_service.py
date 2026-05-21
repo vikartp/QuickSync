@@ -47,9 +47,51 @@ async def get_meeting(meeting_id: str) -> Optional[dict]:
 
 
 async def get_user_meetings(user_id: str) -> List[dict]:
-    """Fetch all meetings created by a specific logged-in user, newest first."""
+    """Fetch all non-permanent meetings created by a specific logged-in user, newest first."""
     db = get_db()
-    cursor = db.meetings.find({"created_by": user_id}).sort("created_at", -1)
+    cursor = db.meetings.find(
+        {"created_by": user_id, "is_permanent": {"$ne": True}}
+    ).sort("created_at", -1)
+    return await cursor.to_list(length=100)
+
+
+async def create_permanent_channel(
+    title: str,
+    created_by: str,
+    member_ids: List[str],
+) -> dict:
+    """Create a permanent channel shared among a fixed set of members."""
+    db = get_db()
+    channel_id = str(uuid.uuid4())
+
+    # Ensure creator is always included; deduplicate
+    all_members = list(dict.fromkeys([created_by] + member_ids))
+
+    channel_doc = {
+        "meeting_id": channel_id,
+        "title": title,
+        "created_by": created_by,
+        "is_guest_meeting": False,
+        "is_permanent": True,
+        "member_ids": all_members,
+        "participants_limit": len(all_members),
+        "max_duration_minutes": None,
+        "status": "active",
+        "participants": [],
+        "created_at": datetime.utcnow(),
+        "ended_at": None,
+    }
+
+    await db.meetings.insert_one(channel_doc)
+    return channel_doc
+
+
+async def get_channels_for_user(user_id: str) -> List[dict]:
+    """Fetch all permanent channels where the user is a creator or member, newest first."""
+    db = get_db()
+    cursor = db.meetings.find(
+        {"is_permanent": True, "member_ids": user_id}
+    ).sort("created_at", -1)
     return await cursor.to_list(length=100)
 
 
@@ -112,15 +154,25 @@ async def remove_participant(meeting_id: str, name: str):
 
 
 async def end_meeting(meeting_id: str):
-    """Manually end a meeting (mark as ended, clear participants)."""
+    """Manually end a meeting (mark as ended, store duration, clear participants)."""
     db = get_db()
+    meeting = await db.meetings.find_one({"meeting_id": meeting_id})
+    duration_minutes = None
+    if meeting and meeting.get("created_at"):
+        delta = datetime.utcnow() - meeting["created_at"]
+        duration_minutes = round(delta.total_seconds() / 60)
+
+    update: dict = {
+        "status": "ended",
+        "ended_at": datetime.utcnow(),
+        "participants": [],
+    }
+    if duration_minutes is not None:
+        update["duration_minutes"] = duration_minutes
+
     await db.meetings.update_one(
         {"meeting_id": meeting_id},
-        {"$set": {
-            "status": "ended",
-            "ended_at": datetime.utcnow(),
-            "participants": [],
-        }}
+        {"$set": update}
     )
 
 

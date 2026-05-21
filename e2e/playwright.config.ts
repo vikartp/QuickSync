@@ -19,6 +19,8 @@ export default defineConfig({
       args: [
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
+        '--disable-features=WebRtcHideLocalIpsWithMdns', // expose real IPs for localhost ICE
+        '--allow-loopback-in-peer-connection',           // allow loopback WebRTC connections
       ],
     },
     contextOptions: {

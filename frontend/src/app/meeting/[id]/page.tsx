@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { Mic, MicOff, MonitorUp, MonitorOff, PhoneOff, User, MessageSquare, Maximize, Minimize, Camera, CameraOff, CircleDot, Square, Settings, X, Loader2, ArrowRight, Link2, Check } from 'lucide-react';
+import { Mic, MicOff, MonitorUp, MonitorOff, PhoneOff, User, MessageSquare, Maximize, Minimize, Camera, CameraOff, CircleDot, Square, X, Loader2, ArrowRight, Link2, Check, ChevronUp } from 'lucide-react';
 import { ParticipantsModal } from '../../../components/ParticipantsModal';
-import { SettingsModal } from '../../../components/SettingsModal';
 import { ChatSidebar } from '../../../components/ChatSidebar';
 import { getMeeting } from '../../../lib/api';
 import { getWsUrl } from '../../../lib/url';
@@ -39,13 +38,14 @@ export default function MeetingRoom() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState('');
-  const [showSettings, setShowSettings] = useState(false);
   const [audioInputId, setAudioInputId] = useState<string>('');
   const [audioOutputId, setAudioOutputId] = useState<string>('');
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [activeUsers, setActiveUsers] = useState<string[]>([]);
   const [showUsersModal, setShowUsersModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [showAudioMenu, setShowAudioMenu] = useState(false);
+  const audioMenuRef = useRef<HTMLDivElement>(null);
 
   // ==========================================
   // 2. WEBRTC & DOM REFERENCES
@@ -80,6 +80,17 @@ export default function MeetingRoom() {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Close audio device menu on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (audioMenuRef.current && !audioMenuRef.current.contains(e.target as Node)) {
+        setShowAudioMenu(false);
+      }
+    };
+    if (showAudioMenu) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showAudioMenu]);
 
   useEffect(() => {
     if (isRecording && recordingAudioCtxRef.current && recordingDestRef.current) {
@@ -565,7 +576,9 @@ export default function MeetingRoom() {
     if (isRecording) {
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
-      try { recordingAudioCtxRef.current?.close(); } catch(e) {}
+      if (recordingAudioCtxRef.current?.state !== 'closed') {
+        recordingAudioCtxRef.current?.close();
+      }
       recordingAudioCtxRef.current = null;
       recordingDestRef.current = null;
       micSourceNodeRef.current = null;
@@ -618,14 +631,16 @@ export default function MeetingRoom() {
           a.download = `quicksync-recording-${new Date().getTime()}.webm`;
           a.click();
           stream.getTracks().forEach(t => t.stop());
-          try { audioCtx.close(); } catch(e) {}
+          if (audioCtx.state !== 'closed') { audioCtx.close(); }
         };
 
         stream.getVideoTracks()[0].onended = () => {
           if (mediaRecorderRef.current?.state !== 'inactive') {
             mediaRecorderRef.current?.stop();
             setIsRecording(false);
-            try { recordingAudioCtxRef.current?.close(); } catch(e) {}
+            if (recordingAudioCtxRef.current?.state !== 'closed') {
+              recordingAudioCtxRef.current?.close();
+            }
           }
         };
 
@@ -876,14 +891,73 @@ export default function MeetingRoom() {
               <User size={20} />
             </button>
 
-            <button
-              onClick={toggleMute}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' : 'hover:opacity-80'}`}
-              style={isMuted ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
-              title={isMuted ? "Unmute" : "Mute"}
-            >
-              {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
+            <div className="relative" ref={audioMenuRef}>
+              {/* Audio device popover */}
+              {showAudioMenu && (
+                <div
+                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-72 rounded-xl shadow-2xl p-3 space-y-3 z-50"
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                >
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--fg-faint)' }}>Microphone</label>
+                    <select
+                      value={audioInputId}
+                      onChange={e => setAudioInputId(e.target.value)}
+                      aria-label="Microphone"
+                      className="w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                      style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--fg)' }}
+                    >
+                      <option value="">Default Microphone</option>
+                      {audioDevices.filter(d => d.kind === 'audioinput').map(d => (
+                        <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic (${d.deviceId.substring(0, 5)})`}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--fg-faint)' }}>Speaker</label>
+                    <select
+                      value={audioOutputId}
+                      onChange={e => setAudioOutputId(e.target.value)}
+                      aria-label="Speaker"
+                      className="w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                      style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--fg)' }}
+                    >
+                      <option value="">Default Speaker</option>
+                      {audioDevices.filter(d => d.kind === 'audiooutput').map(d => (
+                        <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker (${d.deviceId.substring(0, 5)})`}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Split button: Mute | Device picker */}
+              <div className="flex items-center">
+                <button
+                  onClick={toggleMute}
+                  className={`w-12 h-12 rounded-l-full flex items-center justify-center transition-all ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' : 'hover:opacity-80'}`}
+                  style={isMuted ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
+                  title={isMuted ? "Unmute" : "Mute"}
+                >
+                  {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAudioMenu(!showAudioMenu);
+                    if (audioDevices.some(d => !d.label)) {
+                      navigator.mediaDevices.getUserMedia({ audio: true })
+                        .then(s => { s.getTracks().forEach(t => t.stop()); navigator.mediaDevices.enumerateDevices().then(setAudioDevices); })
+                        .catch(console.error);
+                    }
+                  }}
+                  className={`w-7 h-12 rounded-r-full flex items-center justify-center transition-all border-l-0 ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' : 'hover:opacity-80'}`}
+                  style={isMuted ? { borderLeft: '1px solid rgba(239,68,68,0.15)' } : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)', borderLeft: '1px solid var(--border)' }}
+                  title="Audio settings"
+                >
+                  <ChevronUp size={13} />
+                </button>
+              </div>
+            </div>
             <button
               onClick={toggleCamera}
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isCameraOn ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'hover:opacity-80'}`}
@@ -908,21 +982,6 @@ export default function MeetingRoom() {
             >
               {isRecording ? <Square size={16} fill="currentColor" /> : <CircleDot size={18} className="text-red-400" />}
               {isRecording ? 'Stop Rec' : 'Record'}
-            </button>
-            <button
-              onClick={() => {
-                setShowSettings(true);
-                if (audioDevices.some(d => !d.label)) {
-                  navigator.mediaDevices.getUserMedia({ audio: true })
-                    .then(s => { s.getTracks().forEach(t => t.stop()); navigator.mediaDevices.enumerateDevices().then(setAudioDevices); })
-                    .catch(console.error);
-                }
-              }}
-              className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
-              style={{ background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
-              title="Settings"
-            >
-              <Settings size={20} />
             </button>
             <button
               onClick={toggleFullscreen}
@@ -960,19 +1019,6 @@ export default function MeetingRoom() {
           chatContainerRef={chatContainerRef}
         />
       </div>
-      <SettingsModal
-        showSettings={showSettings}
-        setShowSettings={setShowSettings}
-        audioInputId={audioInputId}
-        setAudioInputId={setAudioInputId}
-        audioOutputId={audioOutputId}
-        setAudioOutputId={setAudioOutputId}
-        audioDevices={audioDevices}
-        isAdmin={false}
-        adminSessions={{}}
-        secretKey={''}
-        fetchAdminSessions={() => { }}
-      />
 
       {/* Participants Modal */}
       <ParticipantsModal

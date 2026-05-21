@@ -74,6 +74,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
           <button 
             type="submit"
             disabled={!chatInput.trim()}
+            aria-label="Send message"
             className="absolute right-1 top-1 bottom-1 w-8 flex items-center justify-center rounded-full bg-indigo-600 text-white disabled:opacity-50 transition-colors"
           >
             <Send size={14} className={chatInput.trim() ? "translate-x-[-1px] translate-y-[1px]" : ""} />

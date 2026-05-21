@@ -2,10 +2,12 @@
 Auth API router — handles Google OAuth login and user profile.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import List
 from app.models.user import GoogleAuthRequest, AuthResponse, UserResponse
 from app.services.auth_service import verify_google_token, upsert_user, create_jwt
 from app.core import get_current_user
+from app.database import get_db
 
 router = APIRouter()
 
@@ -48,3 +50,35 @@ async def get_me(user: dict = Depends(get_current_user)):
         avatar_url=user.get("avatar_url"),
         tier=user.get("tier", "free"),
     )
+
+
+@router.get("/search", response_model=List[UserResponse])
+async def search_users(
+    q: str = Query(..., min_length=1, max_length=100),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Search for users by name or email (case-insensitive, partial match).
+    Excludes the requesting user from results. Requires authentication.
+    """
+    import re
+    db = get_db()
+    escaped = re.escape(q.strip())
+    cursor = db.users.find({
+        "$or": [
+            {"name": {"$regex": escaped, "$options": "i"}},
+            {"email": {"$regex": escaped, "$options": "i"}},
+        ],
+        "_id": {"$ne": user["_id"]},
+    }).limit(10)
+    users = await cursor.to_list(length=10)
+    return [
+        UserResponse(
+            id=str(u["_id"]),
+            email=u["email"],
+            name=u["name"],
+            avatar_url=u.get("avatar_url"),
+            tier=u.get("tier", "free"),
+        )
+        for u in users
+    ]

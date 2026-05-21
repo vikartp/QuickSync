@@ -34,6 +34,8 @@ async def connect_db():
         await db.meetings.create_index("meeting_id", unique=True)
         await db.meetings.create_index("created_by")
         await db.meetings.create_index("status")
+        await db.meetings.create_index("member_ids")          # for permanent channel lookups
+        await db.meetings.create_index("is_permanent")
         print("Database indexes ensured.")
     except Exception as e:
         print(f"Index creation warning: {e}")
