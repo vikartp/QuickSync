@@ -1010,14 +1010,14 @@ export default function MeetingRoom() {
             <button
               title={isScreenSharing ? "Stop Screen Share" : "Share Your Screen"}
               onClick={toggleScreenShare}
-              className={`px-6 h-12 rounded-full flex items-center gap-2 font-medium transition-all ${isScreenSharing ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'hover:opacity-80'}`}
+              className={`w-12 h-12 rounded-full flex items-center justify-center font-medium transition-all ${isScreenSharing ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'hover:opacity-80'}`}
               style={isScreenSharing ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
             >
               <MonitorUp size={20} />
             </button>
             <button
               onClick={toggleRecording}
-              className={`px-6 h-12 rounded-full flex items-center gap-2 font-medium transition-all ${isRecording ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30' : 'hover:opacity-80'}`}
+              className={`w-12 h-12 rounded-full flex items-center justify-center font-medium transition-all ${isRecording ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30' : 'hover:opacity-80'}`}
               style={isRecording ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
               title={isRecording ? "Stop Recording" : "Record Session"}
             >
