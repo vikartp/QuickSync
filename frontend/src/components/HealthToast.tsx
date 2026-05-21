@@ -21,7 +21,7 @@ export function HealthToast() {
       } catch {
         setStatus('offline');
       }
-    }, 600);
+    }, 500);
 
     return () => clearTimeout(delay);
   }, []);
@@ -60,7 +60,7 @@ export function HealthToast() {
       )}
       <span className="text-sm font-medium flex-1">
         {isOnline
-          ? "You're all set — server is ready to go!"
+          ? "You're all set — Connect with peers or loved ones!"
           : 'Server is unreachable. Please check back in a few minutes.'}
       </span>
       <button

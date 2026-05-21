@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { Mic, MicOff, MonitorUp, MonitorOff, PhoneOff, User, MessageSquare, Maximize, Minimize, Camera, CameraOff, CircleDot, Square, X, Loader2, ArrowRight, Link2, Check, ChevronUp } from 'lucide-react';
-import { ParticipantsModal } from '../../../components/ParticipantsModal';
 import { ChatSidebar } from '../../../components/ChatSidebar';
 import { getMeeting } from '../../../lib/api';
 import { getWsUrl } from '../../../lib/url';
@@ -34,7 +33,7 @@ export default function MeetingRoom() {
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [isRemoteCameraOn, setIsRemoteCameraOn] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const [isChatVisible, setIsChatVisible] = useState(true);
+  const [isChatVisible, setIsChatVisible] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState('');
@@ -46,6 +45,7 @@ export default function MeetingRoom() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const audioMenuRef = useRef<HTMLDivElement>(null);
+  const usersMenuRef = useRef<HTMLDivElement>(null);
 
   // ==========================================
   // 2. WEBRTC & DOM REFERENCES
@@ -91,6 +91,17 @@ export default function MeetingRoom() {
     if (showAudioMenu) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showAudioMenu]);
+
+  // Close participants popover on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (usersMenuRef.current && !usersMenuRef.current.contains(e.target as Node)) {
+        setShowUsersModal(false);
+      }
+    };
+    if (showUsersModal) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showUsersModal]);
 
   useEffect(() => {
     if (isRecording && recordingAudioCtxRef.current && recordingDestRef.current) {
@@ -882,14 +893,44 @@ export default function MeetingRoom() {
 
           {/* Controls */}
           <div className={`h-16 flex items-center justify-center gap-4 px-6 shrink-0 shadow-lg transition-all duration-300 theme-transition ${isFullscreen ? 'absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/80 backdrop-blur-md rounded-full border border-zinc-700/50 z-50 opacity-0 hover:opacity-100' : 'mt-4 rounded-2xl'}`} style={isFullscreen ? {} : { background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <button
-              onClick={() => setShowUsersModal(true)}
-              className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
-              style={{ background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
-              title="Participants"
-            >
-              <User size={20} />
-            </button>
+            <div className="relative" ref={usersMenuRef}>
+              {showUsersModal && (
+                <div
+                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 rounded-xl shadow-2xl p-3 z-50"
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-faint)' }}>
+                      Participants ({activeUsers.length})
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {activeUsers.length === 0 ? (
+                      <p className="text-xs text-center py-3" style={{ color: 'var(--fg-faint)' }}>No participants</p>
+                    ) : (
+                      activeUsers.map((u, i) => (
+                        <div key={i} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)' }}>
+                          <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-[10px] uppercase shrink-0">
+                            {u.substring(0, 2)}
+                          </div>
+                          <span className="text-xs font-medium truncate" style={{ color: 'var(--fg)' }}>
+                            {u} {u === username && <span className="text-[10px] font-normal" style={{ color: 'var(--fg-faint)' }}>(You)</span>}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={() => setShowUsersModal(!showUsersModal)}
+                className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
+                style={{ background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
+                title="Participants"
+              >
+                <User size={20} />
+              </button>
+            </div>
 
             <div className="relative" ref={audioMenuRef}>
               {/* Audio device popover */}
@@ -967,12 +1008,12 @@ export default function MeetingRoom() {
               {isCameraOn ? <Camera size={20} /> : <CameraOff size={20} />}
             </button>
             <button
+              title={isScreenSharing ? "Stop Screen Share" : "Share Your Screen"}
               onClick={toggleScreenShare}
               className={`px-6 h-12 rounded-full flex items-center gap-2 font-medium transition-all ${isScreenSharing ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'hover:opacity-80'}`}
               style={isScreenSharing ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
             >
               <MonitorUp size={20} />
-              {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
             </button>
             <button
               onClick={toggleRecording}
@@ -981,7 +1022,6 @@ export default function MeetingRoom() {
               title={isRecording ? "Stop Recording" : "Record Session"}
             >
               {isRecording ? <Square size={16} fill="currentColor" /> : <CircleDot size={18} className="text-red-400" />}
-              {isRecording ? 'Stop Rec' : 'Record'}
             </button>
             <button
               onClick={toggleFullscreen}
@@ -1019,14 +1059,6 @@ export default function MeetingRoom() {
           chatContainerRef={chatContainerRef}
         />
       </div>
-
-      {/* Participants Modal */}
-      <ParticipantsModal
-        showUsersModal={showUsersModal}
-        setShowUsersModal={setShowUsersModal}
-        activeUsers={activeUsers}
-        username={username}
-      />
     </div>
   );
 }
