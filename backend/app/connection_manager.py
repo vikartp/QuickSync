@@ -17,10 +17,10 @@ class ConnectionManager:
         if channel not in self.active_connections:
             self.active_connections[channel] = []
             self.session_data[channel] = []
-        
-        # Enforce 2-user limit per channel for P2P performance
+            
+        # Enforce strict 2-user limit for P2P performance, overriding legacy DB limits
         if len(self.active_connections[channel]) >= 2:
-            await websocket.send_json({"type": "error", "message": "Channel is full. Only 2 users allowed."})
+            await websocket.send_json({"type": "error", "message": "Meeting is full. Only 2 participants allowed."})
             await websocket.close(code=1008)
             return False
             

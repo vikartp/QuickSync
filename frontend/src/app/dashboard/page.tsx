@@ -2,12 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MonitorUp, Plus, LogOut, Video, Loader2, Sun, Moon, Shield, Users, Trash2 } from 'lucide-react';
+import { MonitorUp, Plus, LogOut, Video, Loader2, Sun, Moon, Shield, Users, Trash2, Info, Check, X, Sparkles, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../components/AuthProvider';
 import { useTheme } from '../../components/ThemeProvider';
 import { MeetingCard } from '../../components/MeetingCard';
 import { CreateChannelModal } from '../../components/CreateChannelModal';
-import { createMeeting, getMyMeetings, endMeeting, deleteMeeting, getMyChannels, deleteChannel, Meeting, Channel } from '../../lib/api';
+import { FeedbackModal } from '../../components/FeedbackModal';
+import { Footer } from '../../components/Footer';
+import { ProFeaturesTeaser } from '../../components/ProFeaturesTeaser';
+import { createMeeting, getMyMeetings, endMeeting, deleteMeeting, getMyChannels, deleteChannel, updateChannelInvitation, Meeting, Channel } from '../../lib/api';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -19,6 +22,7 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
   const [showChannelModal, setShowChannelModal] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -89,6 +93,23 @@ export default function DashboardPage() {
     }
   };
 
+  const handleUpdateInvitation = async (channelId: string, status: 'accepted' | 'rejected') => {
+    try {
+      await updateChannelInvitation(channelId, status);
+      setChannels(prev => prev.map(ch => {
+        if (ch.channel_id === channelId) {
+          return {
+            ...ch,
+            members: ch.members.map(m => m.id === user?.id ? { ...m, status } : m)
+          };
+        }
+        return ch;
+      }));
+    } catch (err) {
+      console.error('Failed to update invitation', err);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     router.push('/auth');
@@ -132,6 +153,13 @@ export default function DashboardPage() {
               <Shield size={16} />
             </a>
             <button
+              onClick={() => setShowFeedback(true)}
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 text-indigo-500 hover:bg-indigo-500/10 border border-transparent hover:border-indigo-500/20"
+              title="Submit Feedback"
+            >
+              <MessageCircle size={16} />
+            </button>
+            <button
               onClick={toggleTheme}
               className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
               style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--fg-muted)' }}
@@ -150,6 +178,21 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {/* Upcoming Feature Flash Banner */}
+      <div className="max-w-5xl mx-auto px-6 pt-6">
+        <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex items-start sm:items-center gap-3 shadow-lg shadow-indigo-500/5">
+          <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
+            <Sparkles size={16} className="text-indigo-400" />
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-indigo-400 mb-0.5">Upcoming Feature Preview</h4>
+            <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+              We'll allow up to <strong>10 participants</strong> very soon in the free version itself! We are currently upgrading our architecture to support this.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Content */}
       <main className="max-w-5xl mx-auto px-6 py-8">
@@ -246,6 +289,22 @@ export default function DashboardPage() {
                           <Trash2 size={13} />
                         </button>
                       )}
+                      <div className="relative flex items-center group/tooltip ml-1 cursor-help">
+                        <Info size={14} className="text-indigo-400/70 hover:text-indigo-400 transition-colors" />
+                        <div className="absolute top-full right-0 mt-2 w-48 p-3 rounded-xl backdrop-blur-md transition-all opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible z-20" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+                          <div className="font-semibold text-xs mb-2 pb-2 border-b" style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}>Member Status</div>
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                            {ch.members.map(m => (
+                              <div key={m.id} className="flex items-center justify-between text-[11px]">
+                                <span className="truncate pr-2 font-medium" style={{ color: 'var(--fg-muted)' }}>{m.name}</span>
+                                <span className={`capitalize font-semibold ${m.status === 'accepted' ? 'text-green-500' : m.status === 'rejected' ? 'text-red-500' : 'text-yellow-500'}`}>
+                                  {m.status}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -277,13 +336,47 @@ export default function DashboardPage() {
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => router.push(`/meeting/${ch.channel_id}?name=${encodeURIComponent(user?.name || 'User')}`)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
-                  >
-                    <Video size={14} />
-                    Join
-                  </button>
+                  {(() => {
+                    const currentUserStatus = ch.members.find(m => m.id === user?.id)?.status || 'pending';
+
+                    if (currentUserStatus === 'pending') {
+                      return (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleUpdateInvitation(ch.channel_id, 'accepted')}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-500 text-sm font-semibold transition-colors"
+                          >
+                            <Check size={14} /> Accept
+                          </button>
+                          <button
+                            onClick={() => handleUpdateInvitation(ch.channel_id, 'rejected')}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 text-sm font-semibold transition-colors"
+                          >
+                            <X size={14} /> Reject
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    if (currentUserStatus === 'rejected') {
+                      return (
+                        <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/5 border border-red-500/10 text-red-400 text-sm font-medium">
+                          <X size={14} />
+                          Invitation Declined
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <button
+                        onClick={() => router.push(`/meeting/${ch.channel_id}?name=${encodeURIComponent(user?.name || 'User')}`)}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+                      >
+                        <Video size={14} />
+                        Join
+                      </button>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
@@ -319,12 +412,17 @@ export default function DashboardPage() {
 
         {/* Empty State */}
         {!loading && meetings.length === 0 && channels.length === 0 && (
-          <div className="text-center py-16">
+          <div className="text-center py-16 mb-8">
             <Video size={48} className="mx-auto mb-4" style={{ color: 'var(--fg-ghost)' }} />
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--fg-muted)' }}>No meetings yet</h3>
             <p className="text-sm" style={{ color: 'var(--fg-faint)' }}>Create your first meeting or start a permanent channel!</p>
           </div>
         )}
+
+        {/* PRO Features Showcase */}
+        <section className="mt-12 pt-8 border-t" style={{ borderColor: 'var(--border)' }}>
+          <ProFeaturesTeaser />
+        </section>
       </main>
 
       {showChannelModal && (
@@ -336,6 +434,13 @@ export default function DashboardPage() {
           }}
         />
       )}
+
+      {/* Feedback Modal */}
+      {showFeedback && (
+        <FeedbackModal onClose={() => setShowFeedback(false)} />
+      )}
+
+      <Footer />
     </div>
   );
 }

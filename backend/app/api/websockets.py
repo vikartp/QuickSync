@@ -36,7 +36,8 @@ async def websocket_endpoint(
     can_join = await meeting_service.add_participant(meeting_id, display_name)
     if not can_join:
         await websocket.accept()
-        await websocket.send_json({"type": "error", "message": "Meeting is full. Only 2 participants allowed."})
+        limit = meeting.get("participants_limit", 2)
+        await websocket.send_json({"type": "error", "message": f"Meeting is full. Only {limit} participants allowed."})
         await websocket.close(code=1008, reason="Meeting full")
         return
 

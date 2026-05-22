@@ -75,7 +75,7 @@ async def search_users(
     return [
         UserResponse(
             id=str(u["_id"]),
-            email=u["email"],
+            email="",  # Hide email in search results to protect privacy
             name=u["name"],
             avatar_url=u.get("avatar_url"),
             tier=u.get("tier", "free"),

@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Key, Loader2, Video, Users, Trash2, Globe, Lock, Activity, Clock, MonitorUp, User, ArrowLeft, Home } from 'lucide-react';
 import { Footer } from '../../components/Footer';
 import { useTheme } from '../../components/ThemeProvider';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, MessageSquare } from 'lucide-react';
 import { getApiUrl } from '../../lib/url';
+import { getFeedbacks, deleteFeedback, Feedback } from '../../lib/api';
 
 interface ActiveMeeting {
   meeting_id: string;
@@ -22,16 +23,17 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sessions, setSessions] = useState<ActiveMeeting[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
 
   const API_URL = getApiUrl();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminKey) return;
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
       const res = await fetch(`${API_URL}/admin/sessions?admin_key=${encodeURIComponent(adminKey)}`);
       if (!res.ok) {
@@ -39,6 +41,14 @@ export default function AdminDashboard() {
       }
       const data = await res.json();
       setSessions(data.sessions || []);
+
+      try {
+        const fbs = await getFeedbacks(adminKey);
+        setFeedbacks(fbs || []);
+      } catch (e) {
+        console.error("Failed to fetch feedbacks", e);
+      }
+
       setIsAuthenticated(true);
       // Save key to session storage to persist across reloads
       sessionStorage.setItem('admin_key', adminKey);
@@ -58,6 +68,14 @@ export default function AdminDashboard() {
       } else if (res.status === 403) {
         // Key invalid, logout
         handleLogout();
+        return;
+      }
+
+      try {
+        const fbs = await getFeedbacks(key);
+        setFeedbacks(fbs || []);
+      } catch (e) {
+        console.error("Failed to fetch feedbacks", e);
       }
     } catch (err) {
       console.error("Failed to fetch sessions", err);
@@ -66,7 +84,7 @@ export default function AdminDashboard() {
 
   const handleEndMeeting = async (meetingId: string) => {
     if (!window.confirm("Are you sure you want to end this meeting? All users will be kicked.")) return;
-    
+
     try {
       const res = await fetch(`${API_URL}/admin/sessions/${meetingId}?admin_key=${encodeURIComponent(adminKey)}`, {
         method: 'DELETE',
@@ -82,11 +100,23 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDeleteFeedback = async (feedbackId: string) => {
+    if (!window.confirm("Are you sure you want to delete this feedback?")) return;
+    try {
+      await deleteFeedback(feedbackId, adminKey);
+      setFeedbacks(feedbacks.filter(fb => fb.id !== feedbackId));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete feedback");
+    }
+  };
+
   const handleLogout = () => {
     sessionStorage.removeItem('admin_key');
     setAdminKey('');
     setIsAuthenticated(false);
     setSessions([]);
+    setFeedbacks([]);
   };
 
   // Check session storage on mount
@@ -107,7 +137,7 @@ export default function AdminDashboard() {
     if (isAuthenticated && adminKey) {
       const interval = setInterval(() => {
         fetchSessions(adminKey);
-      }, 5000);
+      }, 10000);
       return () => clearInterval(interval);
     }
   }, [isAuthenticated, adminKey]);
@@ -138,10 +168,10 @@ export default function AdminDashboard() {
           <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-red-500/20">
             <Shield size={24} className="text-red-500" />
           </div>
-          
+
           <h1 className="text-2xl font-bold text-center mb-2" style={{ color: 'var(--fg)' }}>Admin Access</h1>
           <p className="text-center text-sm mb-8" style={{ color: 'var(--fg-muted)' }}>Enter your administrative secret key to proceed.</p>
-          
+
           {error && (
             <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
@@ -164,7 +194,7 @@ export default function AdminDashboard() {
                 required
               />
             </div>
-            
+
             <button
               type="submit"
               disabled={loading}
@@ -193,9 +223,9 @@ export default function AdminDashboard() {
             </div>
             <h1 className="font-semibold text-sm">QuickSync Admin</h1>
           </a>
-          
+
           <div className="flex items-center gap-4">
-             <button
+            <button
               onClick={toggleTheme}
               className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
               style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--fg-muted)' }}
@@ -220,42 +250,42 @@ export default function AdminDashboard() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
-        
+
         {/* Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div className="p-6 rounded-2xl border theme-transition flex items-center gap-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-             <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center border border-indigo-500/20">
-               <Video size={24} className="text-indigo-500" />
-             </div>
-             <div>
-               <p className="text-sm font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-faint)' }}>Active Meetings</p>
-               <h2 className="text-3xl font-bold">{sessions.length}</h2>
-             </div>
+            <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center border border-indigo-500/20">
+              <Video size={24} className="text-indigo-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-faint)' }}>Active Meetings</p>
+              <h2 className="text-3xl font-bold">{sessions.length}</h2>
+            </div>
           </div>
-          
+
           <div className="p-6 rounded-2xl border theme-transition flex items-center gap-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-             <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
-               <Users size={24} className="text-emerald-500" />
-             </div>
-             <div>
-               <p className="text-sm font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-faint)' }}>Live Participants</p>
-               <h2 className="text-3xl font-bold">{totalUsers}</h2>
-             </div>
+            <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
+              <Users size={24} className="text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-faint)' }}>Live Participants</p>
+              <h2 className="text-3xl font-bold">{totalUsers}</h2>
+            </div>
           </div>
         </div>
 
         {/* Sessions List */}
         <div className="mb-6 flex items-center justify-between">
-           <h2 className="text-lg font-bold flex items-center gap-2">
-             <Activity size={18} className="text-red-500" />
-             Live Sessions
-           </h2>
-           <div className="text-xs flex items-center gap-1" style={{ color: 'var(--fg-faint)' }}>
-             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-             Auto-updating
-           </div>
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Activity size={18} className="text-red-500" />
+            Live Sessions
+          </h2>
+          <div className="text-xs flex items-center gap-1" style={{ color: 'var(--fg-faint)' }}>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Auto-updating
+          </div>
         </div>
-        
+
         {sessions.length === 0 ? (
           <div className="text-center py-16 rounded-2xl border theme-transition" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
             <MonitorUp size={48} className="mx-auto mb-4 opacity-20" />
@@ -266,22 +296,22 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 gap-4">
             {sessions.map(s => (
               <div key={s.meeting_id} className="p-5 rounded-2xl border flex flex-col md:flex-row gap-6 md:items-center justify-between theme-transition" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-                
+
                 {/* Meeting Info */}
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                     <h3 className="font-semibold text-base">{s.title}</h3>
-                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: s.is_guest_meeting ? 'rgba(234, 179, 8, 0.1)' : 'rgba(99, 102, 241, 0.1)', color: s.is_guest_meeting ? '#eab308' : '#818cf8', border: `1px solid ${s.is_guest_meeting ? 'rgba(234, 179, 8, 0.2)' : 'rgba(99, 102, 241, 0.2)'}` }}>
-                       {s.is_guest_meeting ? <Globe size={10} /> : <Lock size={10} />}
-                       {s.is_guest_meeting ? 'Guest' : 'Member'}
-                     </span>
+                    <h3 className="font-semibold text-base">{s.title}</h3>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: s.is_guest_meeting ? 'rgba(234, 179, 8, 0.1)' : 'rgba(99, 102, 241, 0.1)', color: s.is_guest_meeting ? '#eab308' : '#818cf8', border: `1px solid ${s.is_guest_meeting ? 'rgba(234, 179, 8, 0.2)' : 'rgba(99, 102, 241, 0.2)'}` }}>
+                      {s.is_guest_meeting ? <Globe size={10} /> : <Lock size={10} />}
+                      {s.is_guest_meeting ? 'Guest' : 'Member'}
+                    </span>
                   </div>
                   <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--fg-faint)' }}>
-                     <span className="font-mono">ID: {s.meeting_id.slice(0, 8)}</span>
-                     <span className="flex items-center gap-1"><Clock size={12} /> {new Date(s.created_at).toLocaleTimeString()}</span>
+                    <span className="font-mono">ID: {s.meeting_id.slice(0, 8)}</span>
+                    <span className="flex items-center gap-1"><Clock size={12} /> {new Date(s.created_at).toLocaleTimeString()}</span>
                   </div>
                 </div>
-                
+
                 {/* Participants */}
                 <div className="flex-1">
                   <p className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--fg-faint)' }}>
@@ -303,18 +333,63 @@ export default function AdminDashboard() {
 
                 {/* Actions */}
                 <div>
-                   <button
-                     onClick={() => handleEndMeeting(s.meeting_id)}
-                     className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 text-sm font-semibold transition-colors border border-red-500/20 flex items-center gap-2"
-                   >
-                     <Trash2 size={16} />
-                     End Meeting
-                   </button>
+                  <button
+                    onClick={() => handleEndMeeting(s.meeting_id)}
+                    className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 text-sm font-semibold transition-colors border border-red-500/20 flex items-center gap-2"
+                  >
+                    <Trash2 size={16} />
+                    End Meeting
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
+
+        {/* Feedbacks List */}
+        <div className="mt-12 mb-6 flex items-center justify-between">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <MessageSquare size={18} className="text-indigo-500" />
+            User Feedbacks
+          </h2>
+        </div>
+
+        {feedbacks.length === 0 ? (
+          <div className="text-center py-12 rounded-2xl border theme-transition" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+            <MessageSquare size={32} className="mx-auto mb-3 opacity-20" />
+            <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--fg-muted)' }}>No feedback yet</h3>
+            <p className="text-xs" style={{ color: 'var(--fg-faint)' }}>Users haven't submitted any feedback.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {feedbacks.map(fb => (
+              <div key={fb.id} className="p-5 rounded-2xl border theme-transition flex flex-col" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 text-indigo-400 font-bold text-xs">
+                      {fb.user_email.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>{fb.user_email}</p>
+                      <p className="text-[10px]" style={{ color: 'var(--fg-faint)' }}>{new Date(fb.created_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteFeedback(fb.id)}
+                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                    title="Delete Feedback"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="p-3 rounded-xl text-sm leading-relaxed" style={{ background: 'var(--bg-input)', color: 'var(--fg-muted)' }}>
+                  {fb.message}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
       </main>
 
       {/* Sticky Footer */}

@@ -28,7 +28,7 @@ async def create_meeting(
         "created_by": created_by,
         "guest_creator_name": guest_name if is_guest else None,
         "is_guest_meeting": is_guest,
-        "participants_limit": 2,        # Hard limit for now; future: configurable
+        "participants_limit": 2,
         "max_duration_minutes": None,   # Future: 30 for paid tier
         "status": "active",
         "participants": [],
@@ -74,7 +74,11 @@ async def create_permanent_channel(
         "is_guest_meeting": False,
         "is_permanent": True,
         "member_ids": all_members,
-        "participants_limit": len(all_members),
+        "member_status": {
+            mid: "accepted" if mid == created_by else "pending"
+            for mid in all_members
+        },
+        "participants_limit": 2,
         "max_duration_minutes": None,
         "status": "active",
         "participants": [],
@@ -98,6 +102,8 @@ async def get_channels_for_user(user_id: str) -> List[dict]:
 async def add_participant(meeting_id: str, name: str) -> bool:
     """
     Add a participant to a meeting's live tracking array.
+    Uses upsert-style logic: removes any stale entry for the same name first,
+    so a reconnecting user doesn't get blocked by their own ghost entry.
     Returns False if the meeting is full or doesn't exist.
     """
     db = get_db()
@@ -106,6 +112,14 @@ async def add_participant(meeting_id: str, name: str) -> bool:
     if not meeting or meeting["status"] != "active":
         return False
 
+    # Remove any stale entry for this user first (handles reconnection after crash)
+    await db.meetings.update_one(
+        {"meeting_id": meeting_id},
+        {"$pull": {"participants": {"name": name}}}
+    )
+
+    # Re-fetch to get accurate participant count after cleanup
+    meeting = await db.meetings.find_one({"meeting_id": meeting_id})
     if len(meeting["participants"]) >= meeting["participants_limit"]:
         return False
 
@@ -120,7 +134,9 @@ async def remove_participant(meeting_id: str, name: str):
     """
     Remove a participant from the meeting's live tracking.
     If the meeting is a guest meeting and becomes empty, auto-delete it.
-    If it's a logged-in user's meeting and becomes empty, mark it as ended.
+    For logged-in user meetings, the meeting stays active so participants
+    can reconnect after a server interruption. Only `end_meeting()` (explicit
+    user action) sets the status to "ended".
     """
     db = get_db()
     meeting = await db.meetings.find_one({"meeting_id": meeting_id})
@@ -145,12 +161,9 @@ async def remove_participant(meeting_id: str, name: str):
         if updated.get("is_guest_meeting"):
             # Guest meetings are ephemeral — delete from DB
             await db.meetings.delete_one({"meeting_id": meeting_id})
-        else:
-            # Logged-in user meetings persist — mark as ended
-            await db.meetings.update_one(
-                {"meeting_id": meeting_id},
-                {"$set": {"status": "ended", "ended_at": datetime.utcnow()}}
-            )
+        # For logged-in user meetings: keep status "active" so clients can
+        # reconnect after server restarts. The meeting is only ended when
+        # the creator explicitly calls the end_meeting API.
 
 
 async def end_meeting(meeting_id: str):
@@ -180,3 +193,32 @@ async def delete_meeting(meeting_id: str):
     """Permanently delete a meeting from the database."""
     db = get_db()
     await db.meetings.delete_one({"meeting_id": meeting_id})
+
+
+async def cleanup_stale_participants():
+    """
+    Clear all participant arrays for active meetings.
+    Called on server startup because all in-memory WebSocket connections
+    are lost when the server restarts — the participant lists in MongoDB
+    become stale ghost entries that would block reconnecting users.
+    """
+    db = get_db()
+    result = await db.meetings.update_many(
+        {"status": "active", "participants.0": {"$exists": True}},
+        {"$set": {"participants": []}}
+    )
+    if result.modified_count > 0:
+        print(f"Cleaned up stale participants from {result.modified_count} active meeting(s).")
+
+
+async def update_invitation_status(channel_id: str, user_id: str, status: str):
+    """Update a member's invitation status ('accepted' or 'rejected') for a permanent channel."""
+    db = get_db()
+    # Ensure the status is valid
+    if status not in ("accepted", "rejected"):
+        raise ValueError("Invalid status. Must be 'accepted' or 'rejected'.")
+
+    await db.meetings.update_one(
+        {"meeting_id": channel_id, "is_permanent": True},
+        {"$set": {f"member_status.{user_id}": status}}
+    )

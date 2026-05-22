@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { Mic, MicOff, MonitorUp, MonitorOff, PhoneOff, User, MessageSquare, Maximize, Minimize, Camera, CameraOff, CircleDot, Square, X, Loader2, ArrowRight, Link2, Check, ChevronUp } from 'lucide-react';
+import { Mic, MicOff, MonitorUp, MonitorOff, PhoneOff, User, MessageSquare, Maximize, Minimize, Camera, CameraOff, CircleDot, Square, X, Loader2, ArrowRight, Link2, Check, ChevronUp, WifiOff, RefreshCw } from 'lucide-react';
 import { ChatSidebar } from '../../../components/ChatSidebar';
 import { getMeeting } from '../../../lib/api';
 import { getWsUrl } from '../../../lib/url';
@@ -44,8 +44,17 @@ export default function MeetingRoom() {
   const [showUsersModal, setShowUsersModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [showAudioMenu, setShowAudioMenu] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const audioMenuRef = useRef<HTMLDivElement>(null);
   const usersMenuRef = useRef<HTMLDivElement>(null);
+
+  // Reconnection refs
+  const intentionalDisconnect = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const MAX_RECONNECT_ATTEMPTS = 20;
+  const BASE_RECONNECT_DELAY = 1000; // 1s, will exponentially backoff up to 15s
 
   // ==========================================
   // 2. WEBRTC & DOM REFERENCES
@@ -173,6 +182,17 @@ export default function MeetingRoom() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  // Cleanup reconnect timer on unmount
+  useEffect(() => {
+    return () => {
+      intentionalDisconnect.current = true;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
+  }, []);
   const autoJoinAttempted = useRef(false);
 
   // Validate meeting exists on mount and auto-join for logged-in users or name-from-query
@@ -218,7 +238,7 @@ export default function MeetingRoom() {
    * Initializes the WebSocket connection and sets up signaling listeners.
    * This is the gateway to entering a channel and discovering peers.
    */
-  const connectWebSocket = (autoJoinName?: string) => {
+  const connectWebSocket = (autoJoinName?: string, isReconnect = false) => {
     if (ws.current) return;
 
     const finalName = autoJoinName || username;
@@ -227,17 +247,45 @@ export default function MeetingRoom() {
       return;
     }
 
-    setIsConnecting(true);
+    if (!isReconnect) {
+      setIsConnecting(true);
+      intentionalDisconnect.current = false;
+    }
 
     const baseUrl = getWsUrl();
     const wsUrl = `${baseUrl}/ws/${meetingId}?username=${encodeURIComponent(finalName.trim())}`;
-    const socket = new WebSocket(wsUrl);
+
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(wsUrl);
+    } catch (err) {
+      // WebSocket constructor can throw if the URL is invalid or server is down.
+      // During reconnect, schedule the next retry directly.
+      console.error('[QuickSync] WebSocket constructor failed:', err);
+      if (isReconnect) {
+        scheduleReconnect(finalName);
+      } else {
+        setError('Connection failed. Please check your network and try again.');
+        setIsConnecting(false);
+      }
+      return;
+    }
+
     ws.current = socket;
 
     socket.onopen = () => {
       setIsJoined(true);
       setIsConnecting(false);
       setError('');
+
+      // If we successfully reconnected, reset reconnection state
+      if (isReconnect) {
+        setIsReconnecting(false);
+        setReconnectAttempt(0);
+        reconnectAttemptRef.current = 0;
+        setMessages(prev => [...prev, { sender: 'System', text: '✅ Reconnected successfully!' }]);
+      }
+
       setupWebRTC();
     };
 
@@ -245,8 +293,29 @@ export default function MeetingRoom() {
       const data = JSON.parse(event.data);
 
       if (data.type === 'error') {
-        setError(data.message);
-        setIsConnecting(false);
+        if (!isReconnect) {
+          // Initial connection failed (user was never in the meeting).
+          // Show error and prevent onclose from starting reconnect loop.
+          setError(data.message);
+          setIsConnecting(false);
+          intentionalDisconnect.current = true;
+        } else {
+          // During reconnect: check if the meeting is permanently gone.
+          // "not found" or "has ended" means the meeting was explicitly ended
+          // or deleted — stop retrying. Other errors (e.g., "full") are
+          // transient and the retry loop should continue.
+          const msg = (data.message || '').toLowerCase();
+          if (msg.includes('not found') || msg.includes('has ended') || msg.includes('ended')) {
+            setIsReconnecting(false);
+            setReconnectAttempt(0);
+            reconnectAttemptRef.current = 0;
+            intentionalDisconnect.current = true;
+            setIsJoined(false);
+            setError(data.message);
+            cleanupLocalMedia();
+          }
+          // For other errors (e.g., "Meeting is full"), onclose will continue retry loop
+        }
         socket.close();
       } else if (data.type === 'users_list') {
         setActiveUsers(data.users);
@@ -302,15 +371,69 @@ export default function MeetingRoom() {
     };
 
     socket.onerror = () => {
-      setError('Connection failed. Please check your secret key and try again.');
-      setIsConnecting(false);
+      // Don't show error toast when reconnecting — the banner handles it
+      if (!isReconnect) {
+        setError('Connection failed. Please check your network and try again.');
+        setIsConnecting(false);
+      }
     };
 
     socket.onclose = () => {
-      setIsJoined(false);
-      setIsConnecting(false);
-      cleanup();
+      ws.current = null;
+
+      // Only close the peer connection, NOT the local media streams
+      if (peerConnection.current) {
+        peerConnection.current.close();
+        peerConnection.current = null;
+      }
+
+      // Clear remote streams (peer is gone anyway)
+      setIsRemoteScreenSharing(false);
+      setIsRemoteCameraOn(false);
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+      if (remoteCameraRef.current) remoteCameraRef.current.srcObject = null;
+      if (remoteAudioStream.current) {
+        remoteAudioStream.current.getTracks().forEach(t => t.stop());
+        remoteAudioStream.current = null;
+      }
+
+      // If the user intentionally left, do a full cleanup
+      if (intentionalDisconnect.current) {
+        setIsJoined(false);
+        setIsConnecting(false);
+        cleanupLocalMedia();
+        return;
+      }
+
+      // Unintentional disconnect — schedule reconnect
+      scheduleReconnect(finalName);
     };
+  };
+
+  /** Schedules the next reconnect attempt with exponential backoff. */
+  const scheduleReconnect = (nameToUse: string) => {
+    const attempt = reconnectAttemptRef.current + 1;
+    reconnectAttemptRef.current = attempt;
+    setReconnectAttempt(attempt);
+
+    if (attempt > MAX_RECONNECT_ATTEMPTS) {
+      setIsReconnecting(false);
+      setIsJoined(false);
+      setError('Unable to reconnect after multiple attempts. Please rejoin the meeting.');
+      cleanupLocalMedia();
+      return;
+    }
+
+    setIsReconnecting(true);
+    // Keep isJoined true so the meeting room UI stays visible
+
+    // Exponential backoff: 1s, 2s, 4s, 8s, capped at 15s
+    const delay = Math.min(BASE_RECONNECT_DELAY * Math.pow(2, attempt - 1), 15000);
+    console.log(`[QuickSync] Reconnecting in ${delay}ms (attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS})...`);
+
+    reconnectTimerRef.current = setTimeout(() => {
+      connectWebSocket(nameToUse, true);
+    }, delay);
   };
 
   // ==========================================
@@ -675,6 +798,16 @@ export default function MeetingRoom() {
   };
 
   const leaveChannel = () => {
+    // Mark as intentional so onclose won't trigger reconnect
+    intentionalDisconnect.current = true;
+    // Cancel any pending reconnect timer
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    setIsReconnecting(false);
+    setReconnectAttempt(0);
+    reconnectAttemptRef.current = 0;
     cleanup();
     setIsJoined(false);
     setMessages([]);
@@ -682,15 +815,8 @@ export default function MeetingRoom() {
     router.push('/dashboard');
   };
 
-  const cleanup = () => {
-    if (ws.current) {
-      ws.current.close();
-      ws.current = null;
-    }
-    if (peerConnection.current) {
-      peerConnection.current.close();
-      peerConnection.current = null;
-    }
+  /** Stops all local media tracks (camera, mic, screen). Used on intentional leave. */
+  const cleanupLocalMedia = () => {
     if (localScreenStream.current) {
       localScreenStream.current.getTracks().forEach(t => t.stop());
       localScreenStream.current = null;
@@ -716,6 +842,20 @@ export default function MeetingRoom() {
     setIsRemoteCameraOn(false);
     setIsRecording(false);
     setIsMuted(true);
+  };
+
+  /** Full cleanup: closes WS, peer connection, AND local media. */
+  const cleanup = () => {
+    intentionalDisconnect.current = true;
+    if (ws.current) {
+      ws.current.close();
+      ws.current = null;
+    }
+    if (peerConnection.current) {
+      peerConnection.current.close();
+      peerConnection.current = null;
+    }
+    cleanupLocalMedia();
   };
 
   // ==========================================
@@ -782,6 +922,23 @@ export default function MeetingRoom() {
   // ==========================================
   return (
     <div className="h-screen flex flex-col font-sans overflow-hidden theme-transition" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
+      {/* Reconnecting Banner */}
+      {isReconnecting && (
+        <div
+          className="shrink-0 flex items-center justify-center gap-3 px-4 py-2.5 text-sm font-medium animate-pulse"
+          style={{
+            background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.20) 50%, rgba(245, 158, 11, 0.12) 100%)',
+            borderBottom: '1px solid rgba(245, 158, 11, 0.25)',
+            color: '#f59e0b',
+          }}
+        >
+          <RefreshCw size={16} className="animate-spin" style={{ animationDuration: '1.5s' }} />
+          <span>
+            Trying to get you back in the meeting…
+            <span className="ml-1.5 text-xs opacity-70">(attempt {reconnectAttempt}/{MAX_RECONNECT_ATTEMPTS})</span>
+          </span>
+        </div>
+      )}
       {/* Header */}
       {!isFullscreen && (
         <header className="h-16 backdrop-blur flex items-center justify-between px-6 shrink-0 theme-transition" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>

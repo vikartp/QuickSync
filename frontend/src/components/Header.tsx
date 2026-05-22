@@ -2,8 +2,10 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { MonitorUp, Shield, Lock, Sun, Moon, HelpCircle, X, Video, Users, Globe, Zap, Mic, MonitorUp as ScreenShare } from 'lucide-react';
+import { MonitorUp, Shield, Lock, Sun, Moon, HelpCircle, X, Video, Users, Globe, Zap, Mic, MonitorUp as ScreenShare, MessageCircle } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
+import { useAuth } from './AuthProvider';
+import { FeedbackModal } from './FeedbackModal';
 
 interface HeaderProps {
   showAuthOptions?: boolean;
@@ -11,7 +13,9 @@ interface HeaderProps {
 
 export function Header({ showAuthOptions = true }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
+  const { user, loading } = useAuth();
   const [showInfo, setShowInfo] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   return (
     <>
@@ -43,13 +47,24 @@ export function Header({ showAuthOptions = true }: HeaderProps) {
             <HelpCircle size={16} />
           </button>
 
-          <Link
-            href="/admin"
-            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20"
-            title="Admin Console"
-          >
-            <Shield size={16} />
-          </Link>
+          {user && (
+            <>
+              <Link
+                href="/admin"
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20"
+                title="Admin Console"
+              >
+                <Shield size={16} />
+              </Link>
+              <button
+                onClick={() => setShowFeedback(true)}
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 text-indigo-500 hover:bg-indigo-500/10 border border-transparent hover:border-indigo-500/20"
+                title="Submit Feedback"
+              >
+                <MessageCircle size={16} />
+              </button>
+            </>
+          )}
           
           <button
             onClick={toggleTheme}
@@ -99,6 +114,7 @@ export function Header({ showAuthOptions = true }: HeaderProps) {
                 { icon: ScreenShare, title: 'Screen Sharing', desc: 'Share your entire screen or a specific window with one click.' },
                 { icon: Mic, title: 'Audio Controls', desc: 'Mute/unmute with a single tap. Choose your microphone and speaker from the audio menu.' },
                 { icon: Users, title: 'Recurring Meetings', desc: 'Create dedicated meeting rooms for your team. All members see them on their dashboard and can join anytime.' },
+                { icon: MessageCircle, title: 'User Feedback', desc: 'Submit feature requests or bug reports directly from the top navigation bar.' },
                 { icon: Globe, title: 'No Downloads Required', desc: 'Works entirely in your browser — no plugins, no installs. Just share a link.' },
                 { icon: Lock, title: 'End-to-End Encrypted', desc: 'All connections use WebRTC encryption. Your data never passes through our servers.' },
                 { icon: Zap, title: 'Ultra-Low Latency', desc: 'Direct peer-to-peer connections mean near-zero delay for real-time collaboration.' },
@@ -128,6 +144,7 @@ export function Header({ showAuthOptions = true }: HeaderProps) {
               <li><strong style={{ color: 'var(--fg)' }}>Audio Settings</strong> — Click the small arrow (▲) next to the microphone button to choose your input/output devices.</li>
               <li><strong style={{ color: 'var(--fg)' }}>Recurring Meetings</strong> — From your dashboard, click &quot;New Channel&quot; to create a meeting room that persists. Add team members and everyone can join anytime with one click.</li>
               <li><strong style={{ color: 'var(--fg)' }}>Record a Session</strong> — Click the &quot;Record&quot; button during a meeting. When you stop, the recording downloads automatically.</li>
+              <li><strong style={{ color: 'var(--fg)' }}>Submit Feedback</strong> — Click the message bubble icon in the top header to send direct feedback to the admins.</li>
             </ol>
           </section>
 
@@ -141,6 +158,10 @@ export function Header({ showAuthOptions = true }: HeaderProps) {
           </button>
         </div>
       </div>
+    )}
+    {/* Feedback Dialog */}
+    {showFeedback && (
+      <FeedbackModal onClose={() => setShowFeedback(false)} />
     )}
     </>
   );

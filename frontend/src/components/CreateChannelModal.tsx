@@ -152,7 +152,6 @@ export function CreateChannelModal({ onClose, onCreated }: CreateChannelModalPro
                   )}
                   <div className="min-w-0">
                     <div className="font-medium truncate">{u.name}</div>
-                    <div className="text-xs truncate" style={{ color: 'var(--fg-faint)' }}>{u.email}</div>
                   </div>
                   <Plus size={14} className="ml-auto shrink-0 text-indigo-400" />
                 </button>

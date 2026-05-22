@@ -135,6 +135,7 @@ export interface ChannelMember {
   id: string;
   name: string;
   avatar_url?: string;
+  status: string;
 }
 
 export interface Channel {
@@ -162,4 +163,39 @@ export async function getMyChannels(): Promise<{ channels: Channel[] }> {
 /** Delete a recurring meeting channel. Only the creator can delete. */
 export async function deleteChannel(channelId: string): Promise<void> {
   await apiFetch(`/api/meetings/channels/${channelId}`, { method: 'DELETE' });
+}
+
+/** Accept or reject a recurring meeting invitation. */
+export async function updateChannelInvitation(channelId: string, status: 'accepted' | 'rejected'): Promise<void> {
+  await apiFetch(`/api/meetings/channels/${channelId}/invitation`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+/** Submit feedback to admin */
+export async function submitFeedback(message: string): Promise<void> {
+  await apiFetch('/api/feedbacks', {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+}
+
+export interface Feedback {
+  id: string;
+  user_email: string;
+  message: string;
+  created_at: string;
+}
+
+/** Get all feedbacks (admin only) */
+export async function getFeedbacks(adminKey: string): Promise<Feedback[]> {
+  return apiFetch(`/admin/feedbacks?admin_key=${encodeURIComponent(adminKey)}`);
+}
+
+/** Delete a feedback (admin only) */
+export async function deleteFeedback(feedbackId: string, adminKey: string): Promise<void> {
+  await apiFetch(`/admin/feedbacks/${feedbackId}?admin_key=${encodeURIComponent(adminKey)}`, {
+    method: 'DELETE',
+  });
 }

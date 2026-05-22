@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Query, HTTPException
+from bson import ObjectId
 from app.connection_manager import manager
 from app.config import settings
 from app.database import get_db
-from app.services.meeting_service import end_meeting
+from app.services import meeting_service
 
 router = APIRouter()
 
@@ -36,15 +37,53 @@ async def get_sessions(admin_key: str = Query(None)):
 @router.delete("/sessions/{meeting_id}")
 async def delete_session(meeting_id: str, admin_key: str = Query(None)):
     """
-    Forcefully close an active meeting, kick users, and mark it ended in DB.
+    Forcefully delete a session.
     Requires the admin secret key.
     """
     if admin_key != settings.ADMIN_KEY:
-        raise HTTPException(status_code=403, detail="Invalid secret key")
-        
-    # Kick from websockets
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+
+    await meeting_service.delete_meeting(meeting_id)
     await manager.close_channel(meeting_id)
-    # End in DB
-    await end_meeting(meeting_id)
+    return {"status": "deleted", "meeting_id": meeting_id}
+
+
+@router.get("/feedbacks")
+async def get_feedbacks(admin_key: str = Query(None)):
+    """
+    Get all user feedbacks.
+    Requires the admin secret key.
+    """
+    if admin_key != settings.ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+
+    db = get_db()
+    cursor = db.feedbacks.find().sort("created_at", -1)
+    feedbacks = await cursor.to_list(length=100)
     
-    return {"status": "success"}
+    return [
+        {
+            "id": str(fb["_id"]),
+            "user_email": fb.get("user_email", "unknown"),
+            "message": fb.get("message", ""),
+            "created_at": fb["created_at"].isoformat() if fb.get("created_at") else None
+        }
+        for fb in feedbacks
+    ]
+
+@router.delete("/feedbacks/{feedback_id}")
+async def delete_feedback(feedback_id: str, admin_key: str = Query(None)):
+    """
+    Delete a specific feedback document.
+    Requires the admin secret key.
+    """
+    if admin_key != settings.ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+
+    db = get_db()
+    result = await db.feedbacks.delete_one({"_id": ObjectId(feedback_id)})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+        
+    return {"status": "deleted", "feedback_id": feedback_id}

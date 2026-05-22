@@ -100,11 +100,14 @@ async def _build_channel_response(channel: dict, db) -> ChannelResponse:
     users = await db.users.find({"_id": {"$in": object_ids}}).to_list(length=50)
     user_map = {str(u["_id"]): u for u in users}
 
+    member_status = channel.get("member_status", {})
+
     members = [
         ChannelMember(
             id=mid,
             name=user_map[mid]["name"] if mid in user_map else "Unknown",
             avatar_url=user_map[mid].get("avatar_url") if mid in user_map else None,
+            status=member_status.get(mid, "pending")
         )
         for mid in member_ids
     ]
@@ -173,6 +176,32 @@ async def delete_channel(channel_id: str, user: dict = Depends(get_current_user)
         raise HTTPException(status_code=403, detail="Only the creator can delete this meeting")
     await meeting_service.delete_meeting(channel_id)
     return {"status": "deleted"}
+
+
+from pydantic import BaseModel
+class InvitationUpdateRequest(BaseModel):
+    status: str
+
+@router.patch("/channels/{channel_id}/invitation")
+async def update_channel_invitation(
+    channel_id: str,
+    request: InvitationUpdateRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Accept or reject an invitation to a recurring meeting."""
+    meeting = await meeting_service.get_meeting(channel_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    if not meeting.get("is_permanent"):
+        raise HTTPException(status_code=400, detail="Not a recurring meeting")
+    if str(user["_id"]) not in meeting.get("member_ids", []):
+        raise HTTPException(status_code=403, detail="You are not a member of this channel")
+
+    if request.status not in ("accepted", "rejected"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    await meeting_service.update_invitation_status(channel_id, str(user["_id"]), request.status)
+    return {"status": "updated"}
 
 
 # ==========================================

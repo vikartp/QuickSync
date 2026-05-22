@@ -10,6 +10,7 @@ import { useAuth } from '../../components/AuthProvider';
 import { useTheme } from '../../components/ThemeProvider';
 import { Header } from '../../components/Header';
 import { Footer } from '../../components/Footer';
+import { ProFeaturesTeaser } from '../../components/ProFeaturesTeaser';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
@@ -214,7 +215,12 @@ export default function AuthPage() {
             </div>
           </div>
         </div>
-      </main>
+        
+        {/* PRO Features Teaser */}
+          <div className="max-w-7xl mx-auto w-full px-6 pb-12 mt-8">
+            <ProFeaturesTeaser />
+          </div>
+        </main>
 
         {/* Sticky Footer via Component */}
         <Footer />

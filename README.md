@@ -12,13 +12,14 @@ QuickSync is a production-grade, zero-latency WebRTC-based application for Peer-
 *   **🔐 Google OAuth Login**: Sign in with Google to create and manage meetings from a personal dashboard.
 *   **🔗 Shareable Meeting Links**: Create a meeting and share the UUID-based link — no secret key needed. Having the link IS the access.
 *   **👤 Guest Access**: Guests can create instant meetings without signing in.
-*   **� Recurring Meetings**: Create permanent channels shared with specific users — always available, never expire.
+*   **👥 Recurring Meetings**: Create permanent channels shared with specific users — always available, never expire.
+*   **🗣️ User Feedback System**: Direct line for users to submit feature requests and bugs, instantly viewable by admins.
 *   **⏱️ Meeting Duration Tracking**: Automatically tracks and displays how long each meeting lasted.
-*   **👥 Smart Participant Tracking**: See exactly who is in your room with the active participants modal.
+*   **🚷 Strict Capacity Limits**: Firmly enforces a 2-user limit on active meetings to ensure pristine P2P performance.
 *   **📹 Dynamic Local Recording**: Record the entire meeting (video, screen, and audio) locally to your machine.
 *   **🎙️ Split Mute with Device Picker**: Mute/unmute with a single click, or expand to pick a specific audio input device.
 *   **📱 Immersive Fullscreen Mode**: Distraction-free, edge-to-edge viewing with auto-hiding controls.
-*   **🛡️ Admin Panel**: Dashboard for administrators to monitor active meetings and forcefully close them.
+*   **🛡️ Admin Panel**: Dashboard for administrators to monitor active meetings, force-close them, and review user feedback.
 *   **🎨 Light & Dark Theme**: Toggle between light and dark mode with a fully themed UI using CSS variables.
 *   **🌐 Timezone-Aware Timestamps**: All times displayed in the user's local timezone.
 *   **🗄️ MongoDB Persistence**: Meetings and user accounts are stored in MongoDB Atlas for history and management.

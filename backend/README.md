@@ -89,3 +89,8 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ### Admin
 *   `GET /admin/sessions?admin_key=...` — Returns active meetings with live participant data.
 *   `DELETE /admin/sessions/{meeting_id}?admin_key=...` — Forcefully closes a meeting.
+*   `GET /admin/feedbacks?admin_key=...` — View all submitted user feedback.
+*   `DELETE /admin/feedbacks/{feedback_id}?admin_key=...` — Delete a specific user feedback.
+
+### User Feedback
+*   `POST /api/feedbacks` — Submit new user feedback (requires authentication).

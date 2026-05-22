@@ -22,7 +22,8 @@ class MeetingInDB(BaseModel):
     is_guest_meeting: bool = False
     is_permanent: bool = False                        # Permanent channels never expire
     member_ids: List[str] = []                        # User IDs with access to permanent channels
-    participants_limit: int = 2                       # Future: configurable for paid tiers
+    member_status: dict = Field(default_factory=dict) # User ID -> "pending" | "accepted" | "rejected"
+    participants_limit: int = 10                      # Future: configurable for paid tiers
     max_duration_minutes: Optional[int] = None        # Future: 30 for paid tier
     status: str = "active"                            # "active" | "ended"
     participants: List[MeetingParticipant] = []
@@ -75,6 +76,7 @@ class ChannelMember(BaseModel):
     id: str
     name: str
     avatar_url: Optional[str] = None
+    status: str = "pending"
 
 
 class ChannelResponse(BaseModel):

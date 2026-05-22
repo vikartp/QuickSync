@@ -48,8 +48,9 @@ The UI is built with Tailwind CSS and CSS custom properties for theming. Key com
 *   `Header` / `Footer` — Shared layout components
 *   `MeetingCard` — Dashboard meeting list item
 *   `ChatSidebar` — In-meeting live chat panel
-*   `SettingsModal` — Audio device configuration + admin panel
+*   `SettingsModal` — Audio device configuration
 *   `ParticipantsModal` — Active participants list
+*   `FeedbackModal` — User feedback submission dialog
 
 Icons are provided by `lucide-react`.
 
