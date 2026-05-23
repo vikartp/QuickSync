@@ -11,6 +11,8 @@ import { useTheme } from '../../components/ThemeProvider';
 import { Header } from '../../components/Header';
 import { Footer } from '../../components/Footer';
 import { ProFeaturesTeaser } from '../../components/ProFeaturesTeaser';
+import { Testimonials } from '../../components/Testimonials';
+import { FAQ } from '../../components/FAQ';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
@@ -86,13 +88,13 @@ export default function AuthPage() {
               {/* Left — Hero */}
               <div className="order-2 lg:order-1">
               <h1 className="text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.1] mb-3">
-                <span className="bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to bottom, var(--fg), var(--fg-muted))` }}>Screen share</span>
+                <span className="whitespace-nowrap bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to bottom, var(--fg), var(--fg-muted))` }}>Seamless collaboration</span>
                 <br />
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400">without the hassle.</span>
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400">without the friction.</span>
               </h1>
 
               <p className="text-lg leading-relaxed mb-4 max-w-lg" style={{ color: 'var(--fg-muted)' }}>
-                Peer-to-peer video calls and screen sharing that works instantly. No downloads, no plugins — just share a link and connect.
+                Crystal-clear video, ultra-low latency screen sharing, and dedicated team rooms. No downloads, no plugins—just share a link and connect.
               </p>
 
               {/* Feature Grid */}
@@ -217,8 +219,18 @@ export default function AuthPage() {
         </div>
         
         {/* PRO Features Teaser */}
-          <div className="max-w-7xl mx-auto w-full px-6 pb-12 mt-8">
+          <div className="max-w-7xl mx-auto w-full px-6 mt-8">
             <ProFeaturesTeaser />
+          </div>
+
+        {/* Testimonials */}
+          <div className="max-w-7xl mx-auto w-full px-6 mt-8">
+            <Testimonials />
+          </div>
+
+        {/* FAQ */}
+          <div className="max-w-7xl mx-auto w-full px-6 pb-16">
+            <FAQ />
           </div>
         </main>
 

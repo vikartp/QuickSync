@@ -107,6 +107,7 @@ select,
 summary {
   cursor: pointer;
 }
+
 button:disabled {
   cursor: not-allowed;
 }
@@ -115,13 +116,34 @@ button:disabled {
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--fg-ghost);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--fg-faint);
+}
+
+/* =============================================
+   ANIMATIONS
+   ============================================= */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+  width: max-content;
 }
