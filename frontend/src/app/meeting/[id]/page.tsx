@@ -46,6 +46,8 @@ export default function MeetingRoom() {
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [screenShareSupported, setScreenShareSupported] = useState(true);
+  const [screenShareTooltip, setScreenShareTooltip] = useState(false);
   const audioMenuRef = useRef<HTMLDivElement>(null);
   const usersMenuRef = useRef<HTMLDivElement>(null);
 
@@ -143,6 +145,12 @@ export default function MeetingRoom() {
     getDevices();
     navigator.mediaDevices.addEventListener('devicechange', getDevices);
     return () => navigator.mediaDevices.removeEventListener('devicechange', getDevices);
+  }, []);
+
+  // Detect screen share support (getDisplayMedia is missing on iOS Safari and older Android browsers)
+  useEffect(() => {
+    const supported = !!(navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === 'function');
+    setScreenShareSupported(supported);
   }, []);
 
   useEffect(() => {
@@ -619,6 +627,13 @@ export default function MeetingRoom() {
   const toggleScreenShare = async () => {
     if (!peerConnection.current) return;
 
+    // If screen share isn't supported on this device, show tooltip instead
+    if (!screenShareSupported && !isScreenSharing) {
+      setScreenShareTooltip(true);
+      setTimeout(() => setScreenShareTooltip(false), 3000);
+      return;
+    }
+
     if (isScreenSharing) {
       const senders = peerConnection.current.getSenders();
       if (localScreenStream.current) {
@@ -665,6 +680,13 @@ export default function MeetingRoom() {
         createOffer();
       } catch (err) {
         console.error('Error sharing screen:', err);
+        // On mobile, getDisplayMedia can throw even if "supported" — show helpful message
+        const msg = (err as Error)?.message || '';
+        if (msg.includes('denied') || msg.includes('NotAllowedError')) {
+          setMessages(prev => [...prev, { sender: 'System', text: 'Screen sharing permission was denied.' }]);
+        } else {
+          setMessages(prev => [...prev, { sender: 'System', text: 'Screen sharing is not available on this browser. Try using a desktop browser.' }]);
+        }
       }
     }
   };
@@ -718,24 +740,51 @@ export default function MeetingRoom() {
       micSourceNodeRef.current = null;
     } else {
       try {
-        // Ask user to capture the current tab/screen to record the whole session (videos + chat)
-        // @ts-ignore
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, preferCurrentTab: true });
+        let stream: MediaStream;
+        let isMobileRecording = false;
+
+        if (screenShareSupported) {
+          // Desktop: capture the screen/tab for full-session recording
+          // @ts-ignore
+          stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, preferCurrentTab: true });
+        } else {
+          // Mobile fallback: record camera feed (or blank video) + audio
+          isMobileRecording = true;
+          setMessages(prev => [...prev, { sender: 'System', text: '📱 Recording on mobile — capturing camera and audio only.' }]);
+
+          if (localCameraStream.current && localCameraStream.current.getVideoTracks().length > 0) {
+            // Clone the existing camera stream for recording
+            stream = localCameraStream.current.clone();
+          } else {
+            // No camera active — get a camera stream just for recording
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            } catch {
+              // If no camera at all, create audio-only recording
+              stream = new MediaStream();
+              setMessages(prev => [...prev, { sender: 'System', text: 'No camera available — recording audio only.' }]);
+            }
+          }
+        }
         
         const audioCtx = new AudioContext();
         const dest = audioCtx.createMediaStreamDestination();
         recordingAudioCtxRef.current = audioCtx;
         recordingDestRef.current = dest;
 
-        // Mix display audio if the browser provides it (tab audio capture)
-        const displayAudioTracks = stream.getAudioTracks();
-        if (displayAudioTracks.length > 0) {
-          audioCtx.createMediaStreamSource(new MediaStream([displayAudioTracks[0]])).connect(dest);
+        // Mix display audio if the browser provides it (tab audio capture — desktop only)
+        if (!isMobileRecording) {
+          const displayAudioTracks = stream.getAudioTracks();
+          if (displayAudioTracks.length > 0) {
+            audioCtx.createMediaStreamSource(new MediaStream([displayAudioTracks[0]])).connect(dest);
+          }
         }
 
         // Always mix remote audio from WebRTC peer (other participants)
         if (remoteAudioStream.current && remoteAudioStream.current.getAudioTracks().length > 0) {
-          audioCtx.createMediaStreamSource(remoteAudioStream.current).connect(dest);
+          const remoteSource = audioCtx.createMediaStreamSource(remoteAudioStream.current);
+          remoteSource.connect(dest);
+          remoteSourceNodeRef.current = remoteSource;
         }
 
         // Mix local mic if currently unmuted
@@ -745,8 +794,9 @@ export default function MeetingRoom() {
           micSourceNodeRef.current = micSource;
         }
 
+        const videoTracks = stream.getVideoTracks();
         const combinedStream = new MediaStream([
-          ...stream.getVideoTracks(),
+          ...videoTracks,
           ...dest.stream.getAudioTracks()
         ]);
 
@@ -768,21 +818,24 @@ export default function MeetingRoom() {
           if (audioCtx.state !== 'closed') { audioCtx.close(); }
         };
 
-        stream.getVideoTracks()[0].onended = () => {
-          if (mediaRecorderRef.current?.state !== 'inactive') {
-            mediaRecorderRef.current?.stop();
-            setIsRecording(false);
-            if (recordingAudioCtxRef.current?.state !== 'closed') {
-              recordingAudioCtxRef.current?.close();
+        if (videoTracks.length > 0) {
+          videoTracks[0].onended = () => {
+            if (mediaRecorderRef.current?.state !== 'inactive') {
+              mediaRecorderRef.current?.stop();
+              setIsRecording(false);
+              if (recordingAudioCtxRef.current?.state !== 'closed') {
+                recordingAudioCtxRef.current?.close();
+              }
             }
-          }
-        };
+          };
+        }
 
         recorder.start();
         mediaRecorderRef.current = recorder;
         setIsRecording(true);
       } catch (err) {
         console.error("Recording failed", err);
+        setMessages(prev => [...prev, { sender: 'System', text: 'Recording failed. Your browser may not support this feature.' }]);
       }
     }
   };
@@ -890,7 +943,7 @@ export default function MeetingRoom() {
       );
     }
     return (
-      <div className="min-h-screen flex items-center justify-center font-sans theme-transition" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
+      <div className="min-h-screen flex items-center justify-center px-4 font-sans theme-transition" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
         <div className="w-full max-w-md p-8 rounded-3xl backdrop-blur-xl shadow-xl theme-transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
           <div className="text-center mb-6">
             <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg"><MonitorUp size={24} className="text-white" /></div>
@@ -941,7 +994,7 @@ export default function MeetingRoom() {
       )}
       {/* Header */}
       {!isFullscreen && (
-        <header className="h-16 backdrop-blur flex items-center justify-between px-6 shrink-0 theme-transition" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+        <header className="h-14 sm:h-16 backdrop-blur flex items-center justify-between px-3 sm:px-6 shrink-0 theme-transition" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
               <MonitorUp size={16} className="text-white" />
@@ -958,18 +1011,19 @@ export default function MeetingRoom() {
                 setLinkCopied(true);
                 setTimeout(() => setLinkCopied(false), 2000);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border transition-all duration-200 ${linkCopied
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium border transition-all duration-200 ${linkCopied
                   ? 'bg-green-500/10 text-green-400 border-green-500/20'
                   : 'hover:opacity-80'
                 }`}
               style={linkCopied ? {} : { background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--fg-muted)' }}
             >
               {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
-              {linkCopied ? 'Copied!' : 'Copy Meeting Link'}
+              <span className="hidden sm:inline">{linkCopied ? 'Copied!' : 'Copy Meeting Link'}</span>
+              <span className="sm:hidden">{linkCopied ? 'Copied!' : 'Copy'}</span>
             </button>
             <button
               onClick={leaveChannel}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors text-sm font-medium border border-red-500/20"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors text-xs sm:text-sm font-medium border border-red-500/20"
             >
               <PhoneOff size={14} />
               Leave
@@ -981,7 +1035,7 @@ export default function MeetingRoom() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Screen Share Area */}
-        <div className={isFullscreen ? 'fixed inset-0 z-[9999] bg-black flex flex-col' : 'flex-1 flex flex-col relative transition-all duration-300 p-4'}>
+        <div className={isFullscreen ? 'fixed inset-0 z-[9999] bg-black flex flex-col' : 'flex-1 flex flex-col relative transition-all duration-300 p-2 sm:p-4'}>
           <div className={`flex-1 overflow-hidden relative flex items-center justify-center shadow-2xl transition-all duration-300 ${isFullscreen ? 'rounded-none border-none' : 'rounded-2xl'}`} style={{ background: 'var(--bg-subtle)', border: isFullscreen ? 'none' : '1px solid var(--border)' }}>
 
             {/* Top Close Button (Fullscreen only) */}
@@ -1012,7 +1066,7 @@ export default function MeetingRoom() {
               autoPlay
               playsInline
               className={(isRemoteScreenSharing || isScreenSharing) ?
-                "absolute top-4 left-4 w-48 h-32 rounded-xl object-cover border-2 border-zinc-700 shadow-xl z-20 bg-zinc-800"
+                "absolute top-2 left-2 sm:top-4 sm:left-4 w-24 h-16 sm:w-48 sm:h-32 rounded-lg sm:rounded-xl object-cover border-2 border-zinc-700 shadow-xl z-20 bg-zinc-800"
                 : `w-full h-full bg-black ${isFullscreen ? 'object-cover' : 'object-contain'}`
               }
               style={{ display: isRemoteCameraOn ? 'block' : 'none' }}
@@ -1024,7 +1078,7 @@ export default function MeetingRoom() {
               autoPlay
               playsInline
               muted
-              className="absolute bottom-4 right-4 w-48 h-32 rounded-xl object-cover border-2 border-indigo-500 shadow-xl z-20 bg-zinc-800 transform scale-x-[-1]"
+              className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 w-24 h-16 sm:w-48 sm:h-32 rounded-lg sm:rounded-xl object-cover border-2 border-indigo-500 shadow-xl z-20 bg-zinc-800 transform scale-x-[-1]"
               style={{ display: isCameraOn ? 'block' : 'none' }}
             />
 
@@ -1049,7 +1103,7 @@ export default function MeetingRoom() {
           </div>
 
           {/* Controls */}
-          <div className={`h-16 flex items-center justify-center gap-4 px-6 shrink-0 shadow-lg transition-all duration-300 theme-transition ${isFullscreen ? 'absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/80 backdrop-blur-md rounded-full border border-zinc-700/50 z-50 opacity-0 hover:opacity-100' : 'mt-4 rounded-2xl'}`} style={isFullscreen ? {} : { background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <div className={`h-14 sm:h-16 flex items-center justify-center gap-2 sm:gap-4 px-3 sm:px-6 shrink-0 shadow-lg transition-all duration-300 theme-transition ${isFullscreen ? 'absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/80 backdrop-blur-md rounded-full border border-zinc-700/50 z-50 opacity-0 hover:opacity-100' : 'mt-2 sm:mt-4 rounded-xl sm:rounded-2xl'}`} style={isFullscreen ? {} : { background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <div className="relative" ref={usersMenuRef}>
               {showUsersModal && (
                 <div
@@ -1081,11 +1135,11 @@ export default function MeetingRoom() {
               )}
               <button
                 onClick={() => setShowUsersModal(!showUsersModal)}
-                className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
                 style={{ background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
                 title="Participants"
               >
-                <User size={20} />
+                <User size={18} />
               </button>
             </div>
 
@@ -1133,11 +1187,11 @@ export default function MeetingRoom() {
               <div className="flex items-center">
                 <button
                   onClick={toggleMute}
-                  className={`w-12 h-12 rounded-l-full flex items-center justify-center transition-all ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' : 'hover:opacity-80'}`}
+                  className={`w-10 h-10 sm:w-12 sm:h-12 rounded-l-full flex items-center justify-center transition-all ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' : 'hover:opacity-80'}`}
                   style={isMuted ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
                   title={isMuted ? "Unmute" : "Mute"}
                 >
-                  {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                  {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
                 </button>
                 <button
                   onClick={() => {
@@ -1148,7 +1202,7 @@ export default function MeetingRoom() {
                         .catch(console.error);
                     }
                   }}
-                  className={`w-7 h-12 rounded-r-full flex items-center justify-center transition-all border-l-0 ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' : 'hover:opacity-80'}`}
+                  className={`w-6 sm:w-7 h-10 sm:h-12 rounded-r-full flex items-center justify-center transition-all border-l-0 ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' : 'hover:opacity-80'}`}
                   style={isMuted ? { borderLeft: '1px solid rgba(239,68,68,0.15)' } : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)', borderLeft: '1px solid var(--border)' }}
                   title="Audio settings"
                 >
@@ -1158,23 +1212,34 @@ export default function MeetingRoom() {
             </div>
             <button
               onClick={toggleCamera}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isCameraOn ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'hover:opacity-80'}`}
+              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all ${isCameraOn ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'hover:opacity-80'}`}
               style={isCameraOn ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
               title={isCameraOn ? "Stop Camera" : "Start Camera"}
             >
-              {isCameraOn ? <Camera size={20} /> : <CameraOff size={20} />}
+              {isCameraOn ? <Camera size={18} /> : <CameraOff size={18} />}
             </button>
-            <button
-              title={isScreenSharing ? "Stop Screen Share" : "Share Your Screen"}
-              onClick={toggleScreenShare}
-              className={`w-12 h-12 rounded-full flex items-center justify-center font-medium transition-all ${isScreenSharing ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'hover:opacity-80'}`}
-              style={isScreenSharing ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
-            >
-              <MonitorUp size={20} />
-            </button>
+            <div className="relative">
+              {screenShareTooltip && (
+                <div
+                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-56 sm:w-64 rounded-xl shadow-2xl p-3 z-50 text-center"
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                >
+                  <p className="text-xs font-medium" style={{ color: 'var(--fg)' }}>Screen sharing is not available</p>
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--fg-faint)' }}>Your mobile browser doesn't support screen sharing. Use a desktop browser for this feature.</p>
+                </div>
+              )}
+              <button
+                title={!screenShareSupported ? 'Screen sharing not available on this device' : isScreenSharing ? 'Stop Screen Share' : 'Share Your Screen'}
+                onClick={toggleScreenShare}
+                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-medium transition-all ${isScreenSharing ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20' : 'hover:opacity-80'} ${!screenShareSupported ? 'opacity-50' : ''}`}
+                style={isScreenSharing ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
+              >
+                {!screenShareSupported ? <MonitorOff size={18} /> : <MonitorUp size={18} />}
+              </button>
+            </div>
             <button
               onClick={toggleRecording}
-              className={`w-12 h-12 rounded-full flex items-center justify-center font-medium transition-all ${isRecording ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30' : 'hover:opacity-80'}`}
+              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-medium transition-all ${isRecording ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30' : 'hover:opacity-80'}`}
               style={isRecording ? {} : { background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
               title={isRecording ? "Stop Recording" : "Record Session"}
             >
@@ -1182,11 +1247,11 @@ export default function MeetingRoom() {
             </button>
             <button
               onClick={toggleFullscreen}
-              className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
               style={{ background: 'var(--bg-input)', color: 'var(--fg-muted)', border: '1px solid var(--border-input)' }}
               title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
             >
-              {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+              {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
             </button>
           </div>
         </div>

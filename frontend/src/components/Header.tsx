@@ -29,7 +29,7 @@ export function Header({ showAuthOptions = true }: HeaderProps) {
     <>
       <div className="sticky top-0 z-50 w-full flex flex-col shadow-sm">
         <nav className="w-full backdrop-blur-xl theme-transition" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
-          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
 
             {/* Left: Logo */}
             <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
@@ -40,7 +40,7 @@ export function Header({ showAuthOptions = true }: HeaderProps) {
             </Link>
 
             {/* Right: Actions */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <span className="hidden sm:flex items-center gap-1.5 text-xs" style={{ color: 'var(--fg-faint)' }}>
                 <Lock size={12} />
                 End-to-end encrypted
@@ -49,7 +49,7 @@ export function Header({ showAuthOptions = true }: HeaderProps) {
 
               <button
                 onClick={() => setShowInfo(true)}
-                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--fg-muted)' }}
                 title="Features & Help"
               >
@@ -77,7 +77,7 @@ export function Header({ showAuthOptions = true }: HeaderProps) {
 
               <button
                 onClick={toggleTheme}
-                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--fg-muted)' }}
                 title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >

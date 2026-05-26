@@ -144,7 +144,7 @@ export default function AdminDashboard() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center font-sans theme-transition" style={{ background: 'var(--bg)' }}>
+      <div className="min-h-screen flex items-center justify-center px-4 font-sans theme-transition" style={{ background: 'var(--bg)' }}>
         {/* Back to Home */}
         <div className="absolute top-6 left-6">
           <a href="/" className="flex items-center gap-2 text-sm font-medium transition-all hover:opacity-80" style={{ color: 'var(--fg-muted)' }}>
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        <div className="w-full max-w-md p-8 rounded-3xl backdrop-blur-2xl theme-transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: `0 8px 40px var(--shadow)` }}>
+        <div className="w-full max-w-md p-6 sm:p-8 rounded-2xl sm:rounded-3xl backdrop-blur-2xl theme-transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: `0 8px 40px var(--shadow)` }}>
           <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-red-500/20">
             <Shield size={24} className="text-red-500" />
           </div>
@@ -216,7 +216,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen font-sans theme-transition flex flex-col" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
       {/* Admin Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl border-b theme-transition" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <a href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
               <MonitorUp size={16} className="text-white" />
@@ -224,7 +224,7 @@ export default function AdminDashboard() {
             <h1 className="font-semibold text-sm">QuickSync Admin</h1>
           </a>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={toggleTheme}
               className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <a href="/" className="flex items-center gap-1.5 text-sm font-medium hover:text-indigo-400 transition-colors" style={{ color: 'var(--fg-muted)' }}>
+            <a href="/" className="hidden sm:flex items-center gap-1.5 text-sm font-medium hover:text-indigo-400 transition-colors" style={{ color: 'var(--fg-muted)' }}>
               <Home size={14} />
               Home
             </a>
@@ -249,7 +249,7 @@ export default function AdminDashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8">
 
         {/* Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
@@ -361,7 +361,7 @@ export default function AdminDashboard() {
             <p className="text-xs" style={{ color: 'var(--fg-faint)' }}>Users haven't submitted any feedback.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {feedbacks.map(fb => (
               <div key={fb.id} className="p-5 rounded-2xl border theme-transition flex flex-col" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
                 <div className="flex items-center justify-between mb-3">

@@ -82,23 +82,23 @@ export default function AuthPage() {
 
         {/* Main Content — Split Layout */}
         <main className="relative z-10 flex-1 overflow-y-auto w-full custom-scrollbar">
-          <div className="max-w-7xl mx-auto w-full px-6 py-4 lg:py-6 min-h-full flex items-center">
-            <div className="grid lg:grid-cols-2 gap-6 lg:gap-8 items-center w-full">
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 lg:py-6 min-h-full flex items-center">
+            <div className="grid lg:grid-cols-2 gap-8 lg:gap-8 items-center w-full">
 
               {/* Left — Hero */}
               <div className="order-2 lg:order-1">
-              <h1 className="text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.1] mb-3">
-                <span className="whitespace-nowrap bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to bottom, var(--fg), var(--fg-muted))` }}>Seamless collaboration</span>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.1] mb-3">
+                <span className="bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to bottom, var(--fg), var(--fg-muted))` }}>Seamless collaboration</span>
                 <br />
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400">without the friction.</span>
               </h1>
 
-              <p className="text-lg leading-relaxed mb-4 max-w-lg" style={{ color: 'var(--fg-muted)' }}>
+              <p className="text-sm sm:text-base lg:text-lg leading-relaxed mb-4 max-w-lg" style={{ color: 'var(--fg-muted)' }}>
                 Crystal-clear video, ultra-low latency screen sharing, and dedicated team rooms. No downloads, no plugins—just share a link and connect.
               </p>
 
               {/* Feature Grid */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                 {features.map((f, i) => (
                   <div key={i} className="group flex items-start gap-3 p-3 rounded-xl transition-colors" style={{ ['--tw-bg-opacity' as string]: 0 }}>
                     <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all theme-transition" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
@@ -113,7 +113,7 @@ export default function AuthPage() {
               </div>
 
               {/* Stats */}
-              <div className="flex items-center gap-8">
+              <div className="flex items-center gap-4 sm:gap-8 flex-wrap">
                 {[
                   { label: 'P2P', sub: 'Direct Connection' },
                   { label: '<50ms', sub: 'Avg. Latency' },
@@ -122,7 +122,7 @@ export default function AuthPage() {
                   <React.Fragment key={i}>
                     {i > 0 && <div className="h-8 w-px" style={{ background: 'var(--border)' }}></div>}
                     <div>
-                      <div className="text-2xl font-bold" style={{ color: 'var(--fg)' }}>{s.label}</div>
+                      <div className="text-xl sm:text-2xl font-bold" style={{ color: 'var(--fg)' }}>{s.label}</div>
                       <div className="text-xs" style={{ color: 'var(--fg-faint)' }}>{s.sub}</div>
                     </div>
                   </React.Fragment>
@@ -131,7 +131,7 @@ export default function AuthPage() {
             </div>
 
             {/* Right — Auth Cards */}
-            <div className="order-1 lg:order-2 w-full max-w-md mx-auto lg:mx-0 lg:ml-auto">
+            <div className="order-1 lg:order-2 w-full max-w-md mx-auto lg:mx-0 lg:ml-auto px-0">
 
               {/* Error */}
               {error && (
@@ -142,7 +142,7 @@ export default function AuthPage() {
               )}
 
               {/* Google Sign In */}
-              <div className="p-5 lg:p-6 rounded-3xl backdrop-blur-2xl theme-transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: `0 8px 40px var(--shadow)` }}>
+              <div className="p-4 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl backdrop-blur-2xl theme-transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: `0 8px 40px var(--shadow)` }}>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-muted)' }}>
                     <Video size={16} className="text-indigo-400" />
@@ -171,7 +171,7 @@ export default function AuthPage() {
               </div>
 
               {/* Guest Access */}
-              <div className="p-5 lg:p-6 rounded-3xl backdrop-blur-2xl theme-transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: `0 8px 40px var(--shadow)` }}>
+              <div className="p-4 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl backdrop-blur-2xl theme-transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: `0 8px 40px var(--shadow)` }}>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                     <Zap size={16} className="text-emerald-400" />
@@ -209,7 +209,7 @@ export default function AuthPage() {
               </div>
 
               {/* Trust badges */}
-              <div className="flex items-center justify-center gap-5 mt-4 text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--fg-faint)' }}>
+              <div className="flex items-center justify-center gap-3 sm:gap-5 mt-4 text-[10px] uppercase tracking-wider font-medium flex-wrap" style={{ color: 'var(--fg-faint)' }}>
                 <span className="flex items-center gap-1"><Shield size={10} /> Secure</span>
                 <span className="flex items-center gap-1"><Zap size={10} /> Fast</span>
                 <span className="flex items-center gap-1"><Globe size={10} /> No install</span>
@@ -219,17 +219,17 @@ export default function AuthPage() {
         </div>
         
         {/* PRO Features Teaser */}
-          <div className="max-w-7xl mx-auto w-full px-6 mt-8">
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 mt-8">
             <ProFeaturesTeaser />
           </div>
 
         {/* Testimonials */}
-          <div className="max-w-7xl mx-auto w-full px-6 mt-8">
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 mt-8">
             <Testimonials />
           </div>
 
         {/* FAQ */}
-          <div className="max-w-7xl mx-auto w-full px-6 pb-16">
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 pb-16">
             <FAQ />
           </div>
         </main>

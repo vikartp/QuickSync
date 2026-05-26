@@ -56,7 +56,7 @@ export function Testimonials() {
   return (
     <section className="mt-8 mb-8 relative theme-transition">
       <div className="text-center mb-10">
-        <h2 className="text-2xl font-bold mb-3 flex items-center justify-center gap-2" style={{ color: 'var(--fg)' }}>
+        <h2 className="text-xl sm:text-2xl font-bold mb-3 flex items-center justify-center gap-2" style={{ color: 'var(--fg)' }}>
           <Quote className="text-indigo-400" size={24} />
           Loved by Teams Worldwide
         </h2>
@@ -65,7 +65,7 @@ export function Testimonials() {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
         {testimonials.map((t, idx) => (
           <div key={idx} className="p-6 rounded-3xl backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 8px 30px var(--shadow)' }}>
             <div className="flex items-center gap-1 mb-4">

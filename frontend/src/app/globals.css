@@ -147,3 +147,33 @@ button:disabled {
   animation: marquee 30s linear infinite;
   width: max-content;
 }
+
+/* =============================================
+   RESPONSIVE / MOBILE HELPERS
+   ============================================= */
+
+/* Prevent horizontal overflow on small screens */
+html, body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Ensure images and videos don't overflow their containers */
+img, video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Safe area padding for notched devices (iPhone etc.) */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .sticky.bottom-0 {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Improve scrollbar on mobile — thinner on touch */
+@media (max-width: 640px) {
+  ::-webkit-scrollbar {
+    width: 3px;
+  }
+}

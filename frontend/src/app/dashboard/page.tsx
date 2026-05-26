@@ -130,7 +130,7 @@ export default function DashboardPage() {
     <div className="min-h-screen font-sans theme-transition" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
       {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl theme-transition" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
               <MonitorUp size={16} className="text-white" />
@@ -138,30 +138,30 @@ export default function DashboardPage() {
             <h1 className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>QuickSync</h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <div className="flex items-center gap-2">
               {user.avatar_url && (
-                <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-full" style={{ border: '1px solid var(--border)' }} />
+                <img src={user.avatar_url} alt="" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" style={{ border: '1px solid var(--border)' }} />
               )}
-              <span className="text-sm" style={{ color: 'var(--fg-muted)' }}>{user.name}</span>
+              <span className="text-sm hidden sm:inline" style={{ color: 'var(--fg-muted)' }}>{user.name}</span>
             </div>
             <a
               href="/admin"
-              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20"
               title="Admin Console"
             >
               <Shield size={16} />
             </a>
             <button
               onClick={() => setShowFeedback(true)}
-              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 text-indigo-500 hover:bg-indigo-500/10 border border-transparent hover:border-indigo-500/20"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 text-indigo-500 hover:bg-indigo-500/10 border border-transparent hover:border-indigo-500/20"
               title="Submit Feedback"
             >
               <MessageCircle size={16} />
             </button>
             <button
               onClick={toggleTheme}
-              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
               style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--fg-muted)' }}
               title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
@@ -180,8 +180,8 @@ export default function DashboardPage() {
       </header>
 
       {/* Upcoming Feature Flash Banner */}
-      <div className="max-w-5xl mx-auto px-6 pt-6">
-        <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex items-start sm:items-center gap-3 shadow-lg shadow-indigo-500/5">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6">
+        <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-start sm:items-center gap-3 shadow-lg shadow-indigo-500/5">
           <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
             <Sparkles size={16} className="text-indigo-400" />
           </div>
@@ -195,14 +195,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Content */}
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Create Meeting */}
-        <div className="p-6 rounded-2xl backdrop-blur-xl mb-8 theme-transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: `0 4px 24px var(--shadow)` }}>
+        <div className="p-4 sm:p-6 rounded-xl sm:rounded-2xl backdrop-blur-xl mb-6 sm:mb-8 theme-transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: `0 4px 24px var(--shadow)` }}>
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--fg)' }}>
             <Plus size={18} className="text-indigo-400" />
             New Meeting
           </h2>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
               value={title}
@@ -215,7 +215,7 @@ export default function DashboardPage() {
             <button
               onClick={handleCreateMeeting}
               disabled={creating}
-              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 w-full sm:w-auto"
             >
               {creating ? <Loader2 size={16} className="animate-spin" /> : <Video size={16} />}
               {creating ? 'Creating...' : 'Create'}

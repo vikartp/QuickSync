@@ -33,13 +33,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* Subtle Grid Pattern */}
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA0MCAwIEwgMCAwIDAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAyKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50 pointer-events-none"></div>
 
-      <div className="w-full max-w-md pt-16 pb-10 px-10 rounded-3xl bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 shadow-[0_8px_32px_rgba(0,0,0,0.5)] relative z-10">
+      <div className="w-full max-w-md pt-12 sm:pt-16 pb-8 sm:pb-10 px-6 sm:px-10 rounded-2xl sm:rounded-3xl bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 shadow-[0_8px_32px_rgba(0,0,0,0.5)] relative z-10 mx-4 sm:mx-0">
 
         <div className="mb-10 text-center">
           <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-indigo-500/30 ring-1 ring-white/10 transform transition-transform hover:scale-105 duration-300">
             <MonitorUp size={32} className="text-white" />
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight mb-3 bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">QuickSync</h1>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-3 bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">QuickSync</h1>
           <p className="text-zinc-400 text-sm font-medium">Zero-latency P2P screen sharing & video calls.</p>
         </div>
 

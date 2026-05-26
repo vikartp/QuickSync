@@ -27,7 +27,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   if (!isChatVisible || isFullscreen) return null;
 
   return (
-    <div className="w-80 flex flex-col shrink-0 transition-all theme-transition" style={{ borderLeft: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+    <div className="fixed inset-0 z-50 sm:relative sm:inset-auto sm:z-auto w-full sm:w-80 flex flex-col shrink-0 transition-all theme-transition" style={{ borderLeft: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
       <div className="h-14 flex items-center justify-between px-4" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-2">
           <MessageSquare size={16} style={{ color: 'var(--fg-faint)' }} />

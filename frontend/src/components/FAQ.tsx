@@ -34,9 +34,9 @@ export function FAQ() {
   };
 
   return (
-    <section className="mt-16 relative theme-transition">
+    <section className="mt-10 sm:mt-16 relative theme-transition">
       <div className="text-center mb-10">
-        <h2 className="text-2xl font-bold mb-3 flex items-center justify-center gap-2" style={{ color: 'var(--fg)' }}>
+        <h2 className="text-xl sm:text-2xl font-bold mb-3 flex items-center justify-center gap-2" style={{ color: 'var(--fg)' }}>
           <MessageCircleQuestion className="text-indigo-400" size={24} />
           Frequently Asked Questions
         </h2>
@@ -54,7 +54,7 @@ export function FAQ() {
           >
             <button
               onClick={() => toggle(idx)}
-              className="w-full text-left px-6 py-5 flex items-center justify-between gap-4 focus:outline-none"
+              className="w-full text-left px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between gap-3 sm:gap-4 focus:outline-none"
             >
               <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{faq.question}</span>
               <ChevronDown
@@ -64,7 +64,7 @@ export function FAQ() {
               />
             </button>
             <div
-              className={`px-6 overflow-hidden transition-all duration-300 ease-in-out ${openIndex === idx ? 'max-h-40 pb-5 opacity-100' : 'max-h-0 opacity-0'}`}
+              className={`px-4 sm:px-6 overflow-hidden transition-all duration-300 ease-in-out ${openIndex === idx ? 'max-h-40 pb-4 sm:pb-5 opacity-100' : 'max-h-0 opacity-0'}`}
             >
               <p className="text-sm leading-relaxed" style={{ color: 'var(--fg-muted)' }}>
                 {faq.answer}

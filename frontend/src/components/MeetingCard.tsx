@@ -45,7 +45,7 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onJoin, onEnd
         </span>
       </div>
 
-      <div className="flex items-center gap-4 text-xs mb-4" style={{ color: 'var(--fg-faint)' }}>
+      <div className="flex items-center gap-3 sm:gap-4 text-xs mb-4 flex-wrap" style={{ color: 'var(--fg-faint)' }}>
         <span className="flex items-center gap-1"><Users size={12} />{meeting.participants_limit} max</span>
         <span className="flex items-center gap-1"><Clock size={12} />{createdAt}</span>
         {!isActive && meeting.duration_minutes != null && (
