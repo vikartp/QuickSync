@@ -159,9 +159,13 @@ html, body {
 }
 
 /* Ensure images and videos don't overflow their containers */
-img, video {
+img {
   max-width: 100%;
   height: auto;
+}
+
+video {
+  max-width: 100%;
 }
 
 /* Safe area padding for notched devices (iPhone etc.) */

@@ -1035,8 +1035,8 @@ export default function MeetingRoom() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Screen Share Area */}
-        <div className={isFullscreen ? 'fixed inset-0 z-[9999] bg-black flex flex-col' : 'flex-1 flex flex-col relative transition-all duration-300 p-2 sm:p-4'}>
-          <div className={`flex-1 overflow-hidden relative flex items-center justify-center shadow-2xl transition-all duration-300 ${isFullscreen ? 'rounded-none border-none' : 'rounded-2xl'}`} style={{ background: 'var(--bg-subtle)', border: isFullscreen ? 'none' : '1px solid var(--border)' }}>
+        <div className={isFullscreen ? 'fixed inset-0 z-[9999] bg-black flex flex-col' : 'flex-1 flex flex-col relative p-2 sm:p-4'}>
+          <div className={`flex-1 overflow-hidden relative flex items-center justify-center shadow-2xl transition-[border-radius,border-color,box-shadow] duration-300 ${isFullscreen ? 'rounded-none border-none' : 'rounded-2xl'}`} style={{ background: 'var(--bg-subtle)', border: isFullscreen ? 'none' : '1px solid var(--border)' }}>
 
             {/* Top Close Button (Fullscreen only) */}
             {isFullscreen && (
@@ -1103,7 +1103,7 @@ export default function MeetingRoom() {
           </div>
 
           {/* Controls */}
-          <div className={`h-14 sm:h-16 flex items-center justify-center gap-2 sm:gap-4 px-3 sm:px-6 shrink-0 shadow-lg transition-all duration-300 theme-transition ${isFullscreen ? 'absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/80 backdrop-blur-md rounded-full border border-zinc-700/50 z-50 opacity-0 hover:opacity-100' : 'mt-2 sm:mt-4 rounded-xl sm:rounded-2xl'}`} style={isFullscreen ? {} : { background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <div className={`h-14 sm:h-16 flex items-center justify-center gap-2 sm:gap-4 px-3 sm:px-6 shrink-0 shadow-lg transition-[opacity,background-color,border-color,transform] duration-300 theme-transition ${isFullscreen ? 'absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/80 backdrop-blur-md rounded-full border border-zinc-700/50 z-50 opacity-0 hover:opacity-100' : 'mt-2 sm:mt-4 rounded-xl sm:rounded-2xl'}`} style={isFullscreen ? {} : { background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <div className="relative" ref={usersMenuRef}>
               {showUsersModal && (
                 <div
