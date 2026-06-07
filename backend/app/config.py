@@ -16,7 +16,7 @@ class Settings:
     # JWT configuration
     JWT_SECRET: str = os.getenv("JWT_SECRET", "change_me_in_production")
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRY_HOURS: int = 24
+    JWT_EXPIRY_HOURS: int = 8760  # 1 year
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
