@@ -333,7 +333,7 @@ export default function MeetingRoom() {
         remoteStreamIds.current = { camera: data.camera, screen: data.screen };
       } else if (data.type === 'user_joined') {
         broadcastStreamInfo();
-        createOffer();
+        createOffer({ iceRestart: true });
       } else if (data.type === 'offer') {
         await handleOffer(data.offer);
       } else if (data.type === 'answer') {
@@ -533,10 +533,10 @@ export default function MeetingRoom() {
     }));
   };
 
-  const createOffer = async () => {
+  const createOffer = async (options?: RTCOfferOptions) => {
     if (!peerConnection.current) return;
     try {
-      const offer = await peerConnection.current.createOffer();
+      const offer = await peerConnection.current.createOffer(options);
       await peerConnection.current.setLocalDescription(offer);
       ws.current?.send(JSON.stringify({ type: 'offer', offer }));
     } catch (err) {
