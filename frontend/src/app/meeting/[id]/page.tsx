@@ -488,9 +488,9 @@ export default function MeetingRoom() {
           remoteAudioStream.current = new MediaStream();
         }
 
-        // Clear previous tracks to avoid accumulating ended tracks
+        // Only remove ended tracks — preserve active ones so mic + screen audio can coexist
         remoteAudioStream.current.getAudioTracks().forEach(t => {
-          if (t.id !== event.track.id) {
+          if (t.readyState === 'ended') {
             remoteAudioStream.current?.removeTrack(t);
           }
         });
@@ -605,6 +605,9 @@ export default function MeetingRoom() {
   // 5. MEDIA CONTROLS (CAMERA, SCREEN, MIC)
   // ==========================================
 
+  /** Returns true if we have an active peer to negotiate with (skip offers when alone). */
+  const needsNegotiation = () => !!peerConnection.current?.currentRemoteDescription;
+
   /**
    * Toggles the user's local camera. 
    * Acquires the hardware stream, displays local preview, and injects it into the active WebRTC tunnel.
@@ -626,7 +629,7 @@ export default function MeetingRoom() {
       setIsCameraOn(false);
 
       broadcastStreamInfo();
-      createOffer();
+      if (needsNegotiation()) createOffer();
       ws.current?.send(JSON.stringify({ type: 'stop_camera' }));
     } else {
       try {
@@ -640,7 +643,7 @@ export default function MeetingRoom() {
 
         setIsCameraOn(true);
         broadcastStreamInfo();
-        createOffer();
+        if (needsNegotiation()) createOffer();
       } catch (err) {
         console.error("Error accessing camera", err);
       }
@@ -674,7 +677,7 @@ export default function MeetingRoom() {
       }
 
       broadcastStreamInfo();
-      createOffer();
+      if (needsNegotiation()) createOffer();
       ws.current?.send(JSON.stringify({ type: 'stop_screen_share' }));
     } else {
       try {
@@ -700,7 +703,7 @@ export default function MeetingRoom() {
         }
 
         broadcastStreamInfo();
-        createOffer();
+        if (needsNegotiation()) createOffer();
       } catch (err) {
         console.error('Error sharing screen:', err);
         // On mobile, getDisplayMedia can throw even if "supported" — show helpful message
@@ -732,7 +735,7 @@ export default function MeetingRoom() {
         });
 
         setIsMuted(false);
-        createOffer();
+        if (needsNegotiation()) createOffer();
       } catch (err) {
         console.error("Error accessing mic:", err);
       }
@@ -747,7 +750,7 @@ export default function MeetingRoom() {
         localAudioStream.current = null;
       }
       setIsMuted(true);
-      createOffer();
+      if (needsNegotiation()) createOffer();
     }
   };
 
