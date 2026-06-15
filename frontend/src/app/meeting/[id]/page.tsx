@@ -86,6 +86,10 @@ export default function MeetingRoom() {
 
   const remoteStreamIds = useRef<{ camera?: string, screen?: string }>({});
 
+  // Perfect negotiation refs — prevents offer glare when both peers send offers simultaneously
+  const isPolite = useRef(true);       // newly joined peer is polite (will rollback); existing peer is impolite
+  const makingOffer = useRef(false);    // true while createOffer + setLocalDescription is in progress
+
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -332,6 +336,8 @@ export default function MeetingRoom() {
       } else if (data.type === 'stream_info') {
         remoteStreamIds.current = { camera: data.camera, screen: data.screen };
       } else if (data.type === 'user_joined') {
+        // We were here first — we are the impolite peer
+        isPolite.current = false;
         broadcastStreamInfo();
         createOffer({ iceRestart: true });
       } else if (data.type === 'offer') {
@@ -352,6 +358,8 @@ export default function MeetingRoom() {
         }
         if (peerConnection.current) {
           peerConnection.current.close();
+          // Reset to polite for the next peer that joins
+          isPolite.current = true;
           setupWebRTC();
         }
       } else if (data.type === 'stop_screen_share') {
@@ -536,20 +544,35 @@ export default function MeetingRoom() {
   const createOffer = async (options?: RTCOfferOptions) => {
     if (!peerConnection.current) return;
     try {
+      makingOffer.current = true;
       const offer = await peerConnection.current.createOffer(options);
       await peerConnection.current.setLocalDescription(offer);
       ws.current?.send(JSON.stringify({ type: 'offer', offer }));
     } catch (err) {
       console.error('Error creating offer', err);
+    } finally {
+      makingOffer.current = false;
     }
   };
 
   const handleOffer = async (offer: RTCSessionDescriptionInit) => {
     if (!peerConnection.current) return;
     try {
-      await peerConnection.current.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await peerConnection.current.createAnswer();
-      await peerConnection.current.setLocalDescription(answer);
+      const pc = peerConnection.current;
+      const offerCollision = makingOffer.current || pc.signalingState !== 'stable';
+
+      if (offerCollision) {
+        if (!isPolite.current) {
+          // Impolite peer: ignore the incoming offer — our own offer takes priority
+          return;
+        }
+        // Polite peer: rollback our pending offer and accept the incoming one
+        await pc.setLocalDescription({ type: 'rollback' });
+      }
+
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
       ws.current?.send(JSON.stringify({ type: 'answer', answer }));
     } catch (err) {
       console.error('Error handling offer', err);
